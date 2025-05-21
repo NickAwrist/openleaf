@@ -17,6 +17,7 @@ const createWindow = () => {
     authService = new AuthService();
     console.log('authService', authService);
 
+    console.log('PRELOAD PATH: ', path.join(__dirname, '../preload/preload.cjs'));
     
     const mainWindow = new BrowserWindow({
         width: 1200,
@@ -24,7 +25,7 @@ const createWindow = () => {
         frame: true,
         trafficLightPosition: { x: 10, y: 10 },
         webPreferences: {
-            preload: path.join(__dirname, 'preload.cjs'), 
+            preload: path.join(__dirname, '../preload/preload.cjs'), 
             nodeIntegration: false,
             contextIsolation: true,
             sandbox: false,

@@ -70,6 +70,8 @@ export class AuthService {
             // Update the user in the database
             this.updateUser();
 
+            console.log('User logged in:', this.currentUser);
+
             return true;
         } catch (error) {
             console.error('Error logging in:', error);

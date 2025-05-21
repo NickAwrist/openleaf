@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "description": "A personal finance application built with Electron and TypeScript",
-  "main": ".vite/build/main.cjs",
+  "main": ".vite/build/main/main.cjs",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
@@ -46,11 +46,13 @@
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/electron-store": "^1.3.1",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^11.10.0",
     "electron-squirrel-startup": "^1.0.1",
+    "electron-store": "^10.0.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "uuid": "^11.1.0"

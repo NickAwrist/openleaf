@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { User } from './types/userTypes';
 
+// This is a modified preload script with added comment
 // Expose window control methods to the renderer
 contextBridge.exposeInMainWorld('electronAPI', {
     // Window control functions

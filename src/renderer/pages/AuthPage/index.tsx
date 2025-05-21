@@ -81,7 +81,7 @@ const AuthPage: React.FC = () => {
                     <span>{apiStatus.message}</span>
                 </div>
             )}
-            <div className="card bg-base-100 shadow-xl w-full max-w-4xl transition-all duration-500 ease-in-out hover:shadow-2xl hover:bg-base-50">
+            <div className="card bg-base-100 shadow-xl w-full max-w-4xl transition-all duration-500 ease-in-out hover:shadow-2xl hover:bg-base-50 -mt-25">
                 <div className="card-body p-0">
                     <div className="flex flex-col md:flex-row">
                         {/* Register Form */}
