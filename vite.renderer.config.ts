@@ -9,8 +9,8 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
-  root: path.resolve(__dirname, 'src/renderer/main_window'),
-  publicDir: path.resolve(__dirname, 'src/renderer/main_window/public'),
+  root: path.resolve(__dirname, 'src/renderer'),
+  publicDir: path.resolve(__dirname, 'src/renderer/public'),
   build: {
     outDir: path.resolve(__dirname, '.vite/renderer'),
     emptyOutDir: true

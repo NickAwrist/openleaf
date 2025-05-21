@@ -1,57 +1,66 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
-
+import { AuthService } from './services/authService';
+import { User } from './types/userTypes';
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
-  app.quit();
+    app.quit();
 }
 
+let authService: any;
+
 const createWindow = () => {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    frame: true,
-    trafficLightPosition: { x: 10, y: 10 },
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: false,
-    },
-  });
+    // Create the browser window.
 
-  // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
-  }
+    console.log('createWindow');
+    authService = new AuthService();
+    console.log('authService', authService);
 
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
+    
+    const mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        frame: true,
+        trafficLightPosition: { x: 10, y: 10 },
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'), 
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: false,
+        },
+    });
 
-  // Set up IPC handlers for window control
-  ipcMain.on('minimize-window', () => {
-    mainWindow.minimize();
-  });
-
-  ipcMain.on('maximize-window', () => {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
+    // and load the index.html of the app.
+    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+        mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     } else {
-      mainWindow.maximize();
+        mainWindow.loadFile(path.join(__dirname, `../renderer/index.html`));
     }
-  });
 
-  ipcMain.on('close-window', () => {
-    mainWindow.close();
-  });
+    // Open the DevTools.
+    mainWindow.webContents.openDevTools();
 
-  ipcMain.handle('is-window-maximized', () => {
-    return mainWindow.isMaximized();
-  });
+    // Set up IPC handlers for window control
+    ipcMain.on('minimize-window', () => {
+        mainWindow.minimize();
+    });
+
+    ipcMain.on('maximize-window', () => {
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
+    });
+
+    ipcMain.on('close-window', () => {
+        mainWindow.close();
+    });
+
+    ipcMain.handle('is-window-maximized', () => {
+        return mainWindow.isMaximized();
+    });
 };
 
 // This method will be called when Electron has finished
@@ -63,18 +72,27 @@ app.on('ready', createWindow);
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
-  }
+    // On OS X it's common to re-create a window in the app when the
+    // dock icon is clicked and there are no other windows open.
+    if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+    }
 });
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
+ipcMain.handle('auth:login', async (event, id: string, masterPassword: string) => {
+    return authService.logUserIn(id, masterPassword);
+});
+
+ipcMain.handle('auth:isLoggedIn', async (event) => {
+    return authService.isLoggedIn();
+});
+
+ipcMain.handle('auth:register', async (event, user: User) => {
+    return authService.register(user);
+});
