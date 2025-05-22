@@ -1,29 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PasswordInput from './PasswordInput';
-import ContactInfoInput from './ContactInfoInput';
+import { User } from 'src/types/userTypes';
 
 interface LoginFormProps {
     onLogin?: (success: boolean) => void;
 }
 
-interface LoginData {
-    contactInfo: string;
-    masterPassword: string;
-}
-
 const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
-    const [loginData, setLoginData] = useState<LoginData>({
-        contactInfo: '',
-        masterPassword: ''
-    });
-    
+    const [masterPassword, setMasterPassword] = useState('');
+    const [nickname, setNickname] = useState('');
     const [error, setError] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [differentUser, setDifferentUser] = useState(false);
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setLoginData(prev => ({ ...prev, [name]: value }));
+    useEffect(() => {
+        const getCurrentUser = async () => {
+            const user = await window.electronAPI.getCurrentUser();
+            setCurrentUser(user);
+        };
+        getCurrentUser();
+        console.log('currentUser', currentUser);
+    }, []);
+    
+    // Show toast when error is set
+    useEffect(() => {
+        if (error) {
+            setShowToast(true);
+            const timer = setTimeout(() => {
+                setShowToast(false);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [error]);
+
+    const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setNickname(e.target.value);
+    };
+    const handleMasterPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setMasterPassword(e.target.value);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -46,10 +62,11 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
                 }
                 return;
             }
-            
-            const success = await window.electronAPI.login(loginData.contactInfo, loginData.masterPassword);
+            console.log('nickname', nickname);
+            console.log('masterPassword', masterPassword);
+            const success = await window.electronAPI.login(nickname, masterPassword);
             if (!success) {
-                setError('Invalid email/phone or password');
+                setError('Invalid master password');
             }
             if (onLogin) {
                 onLogin(success);
@@ -62,47 +79,81 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         }
     };
 
-    const toggleShowPassword = () => {
-        setShowPassword(!showPassword);
-    };
-
     return (
-        <div className="flex-1 p-8">
-            <h2 className="text-2xl font-bold text-center mb-6">Login</h2>
-            <form onSubmit={handleSubmit}>
-                <ContactInfoInput name="contactInfo" onChange={handleChange} value={loginData.contactInfo} />
-                
-                <div className="form-control mb-6">
-                    <label className="label">
-                        <span className="label-text">Master Password</span>
-                    </label>
-                    <PasswordInput name="masterPassword" onChange={handleChange} value={loginData.masterPassword} placeholder="Enter your master password" />
+        <div className="w-full flex flex-col">
+
+            <div className="flex-1 p-8">
+                <div className="text-center mb-8">
+                    <div className="font-bold text-3xl mb-2">
+                        {differentUser ? 'Welcome Back' : `Welcome Back ${currentUser?.nickname}`}
+                    </div>
+                    <p className="text-base-content/60">Enter your master password to unlock</p>
                 </div>
                 
-                {error && (
-                    <div className="alert alert-error mb-4">
-                        <span>{error}</span>
+                <form onSubmit={handleSubmit} className="max-w-md mx-auto">
+                    {differentUser && (
+                        <div className="form-control mb-6">
+                            <input
+                                type="text"
+                                name="nickname"
+                                onChange={handleNicknameChange}
+                                className="input bg-base-200 transition-all duration-300 ease-in-out border-base-300 focus:outline-none focus:border-primary focus:ring-0"
+                                placeholder="Enter your account nickname"
+                                required
+                            />
+                        </div>
+                    )}
+                    
+                    <div className="form-control mb-6">
+                        <PasswordInput 
+                            name="masterPassword" 
+                            onChange={handleMasterPasswordChange} 
+                            value={masterPassword} 
+                            placeholder="Enter your master password" 
+                        />
                     </div>
-                )}
-                
-                <div className="form-control mt-10">
+                    
+                    <div className="form-control mt-10">
+                        <button 
+                            type="submit" 
+                            className={`
+                                btn btn-primary relative overflow-hidden group
+                                transition-all duration-300 ease-out
+                                hover:shadow-md hover:scale-[1.02] active:scale-[0.98]
+                                before:absolute before:inset-0 before:bg-white/20 
+                                before:translate-x-[-100%] hover:before:translate-x-[100%]
+                                before:transition-transform before:duration-500 before:ease-in-out
+                                ${isLoggingIn ? 'loading' : ''}
+                            `}
+                            disabled={isLoggingIn}
+                        >
+                            {isLoggingIn ? 'Unlocking...' : 'Unlock'}
+                        </button>
+                    </div>
+                </form>
+                <div className="text-center mt-4">
                     <button 
-                        type="submit" 
-                        className={`
-                            btn btn-primary relative overflow-hidden group
-                            transition-all duration-300 ease-out
-                            hover:shadow-md hover:scale-[1.02] active:scale-[0.98]
-                            before:absolute before:inset-0 before:bg-white/20 
-                            before:translate-x-[-100%] hover:before:translate-x-[100%]
-                            before:transition-transform before:duration-500 before:ease-in-out
-                            ${isLoggingIn ? 'loading' : ''}
-                        `}
-                        disabled={isLoggingIn}
+                        onClick={() => setDifferentUser(!differentUser)} 
+                        className="btn btn-sm btn-ghost"
                     >
-                        {isLoggingIn ? 'Logging in...' : 'Login'}
+                        {differentUser ? 'Cancel' : 'Log in as a different user'}
                     </button>
                 </div>
-            </form>
+            </div>
+
+            {/* Toast notification for errors */}
+            {showToast && error && (
+                <div className="toast toast-top toast-center mt-50">
+                    <div className="alert alert-error">
+                        <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>{error}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

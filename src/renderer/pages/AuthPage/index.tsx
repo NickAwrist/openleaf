@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
+import { User } from 'src/types/userTypes';
 
 // Declare window.electronAPI type globally to ensure it's available in all components
 declare global {
     interface Window {
         electronAPI: {
-            login: (id: string, masterPassword: string) => Promise<boolean>;
-            register: (user: any) => Promise<void>;
-            isLoggedIn: () => Promise<boolean>;
-            minimizeWindow: () => void;
-            maximizeWindow: () => void;
-            closeWindow: () => void;
-            isWindowMaximized: () => Promise<boolean>;
+            login: (nickname: string, masterPassword: string) => Promise<boolean>;
+            register: (user: any) => Promise<boolean>;
+            getCurrentUser: () => Promise<User>;
         }
     }
 }
@@ -22,46 +19,20 @@ const AuthPage: React.FC = () => {
         login: false,
         register: false
     });
-    const [apiStatus, setApiStatus] = useState({ 
-        available: false, 
-        message: 'Checking Electron API...' 
-    });
+    
+    const [pageType, setPageType] = useState<'login' | 'register'>('login');
 
     useEffect(() => {
-        // Check if electronAPI is available
-        const checkApi = () => {
-            if (typeof window.electronAPI === 'undefined') {
-                setApiStatus({
-                    available: false,
-                    message: 'Error: Electron API not found'
-                });
-                console.error('electronAPI is not defined on window object');
-                return;
-            }
-
-            // Check which methods are available
-            const methods = {
-                login: typeof window.electronAPI.login === 'function',
-                register: typeof window.electronAPI.register === 'function',
-                isLoggedIn: typeof window.electronAPI.isLoggedIn === 'function'
-            };
-
-            if (methods.login && methods.register) {
-                setApiStatus({
-                    available: true,
-                    message: 'Electron API connected'
-                });
+        const checkCurrentUser = async () => {
+            const currentUser = await window.electronAPI.getCurrentUser();
+            if (currentUser) {
+                setPageType('login');
             } else {
-                setApiStatus({
-                    available: false,
-                    message: `API Methods: Login ${methods.login ? '✓' : '✗'}, Register ${methods.register ? '✓' : '✗'}`
-                });
+                setPageType('register');
             }
-            
-            console.log('Electron API status:', methods);
         };
 
-        checkApi();
+        checkCurrentUser();
     }, []);
 
     const handleLoginSuccess = (success: boolean) => {
@@ -74,28 +45,52 @@ const AuthPage: React.FC = () => {
         // Handle redirect or other post-registration actions
     };
 
+    const switchPageType = (type: string) => {
+        if(type != 'login' && type != 'register'){
+            return;
+        }
+        setPageType(type);
+    }
+
     return (
         <div className="min-h-screen bg-base-200 flex items-center justify-center p-4">
-            {!apiStatus.available && (
-                <div className="absolute top-2 left-1/2 transform -translate-x-1/2 alert alert-warning py-1 px-4 shadow-lg">
-                    <span>{apiStatus.message}</span>
-                </div>
-            )}
-            <div className="card bg-base-100 shadow-xl w-full max-w-4xl transition-all duration-500 ease-in-out hover:shadow-2xl hover:bg-base-50 -mt-25">
-                <div className="card-body p-0">
-                    <div className="flex flex-col md:flex-row">
-                        {/* Register Form */}
-                        <RegisterForm onRegister={handleRegisterSuccess} />
-                        
-                        {/* Divider */}
-                        <div className="divider divider-horizontal">OR</div>
-                        
-                        {/* Login Form */}
-                        <LoginForm onLogin={handleLoginSuccess} />
-                    </div>
+            <div className="card bg-base-100 shadow-xl w-full max-w-31/100 transition-all duration-500 ease-in-out hover:shadow-2xl -mt-50">
+                <div className="card-body">
+                    {pageType === 'login' ? (
+                        <>
+                            <LoginForm onLogin={handleLoginSuccess} />
+                            <div className="text-center mt-0">
+                                <p className="text-sm">
+                                    Don't have an account?{' '}
+                                    <button
+                                        onClick={() => switchPageType('register')}
+                                        className="btn btn-link btn-primary p-0 align-baseline text-primary"
+                                    >
+                                        Register
+                                    </button>
+                                </p>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <RegisterForm onRegister={handleRegisterSuccess} />
+                            <div className="text-center mt-0"> 
+                                <p className="text-sm">
+                                    Already have an account?{' '}
+                                    <button
+                                        onClick={() => switchPageType('login')}
+                                        className="btn btn-link btn-secondary p-0 align-baseline text-primary" 
+                                    >
+                                        Login
+                                    </button>
+                                </p>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
+
     );
 };
 

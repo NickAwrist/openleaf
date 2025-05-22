@@ -11,10 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
 
     // Auth functions
-    login: (id: string, masterPassword: string) => ipcRenderer.invoke('auth:login', id, masterPassword),
-    isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
+    login: (nickname: string, masterPassword: string) => ipcRenderer.invoke('auth:login', nickname, masterPassword),
     register: (user: User) => ipcRenderer.invoke('auth:register', user),
-    
+    getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
 });
 
 // Basic preload debug

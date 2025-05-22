@@ -4,11 +4,20 @@ import bcrypt from "bcryptjs";
 import Database from "better-sqlite3";
 import { User } from "src/types/userTypes";
 import * as fs from 'fs';
+import Store from 'electron-store';
 
 // Make sure the data directory exists
 const USER_DATA_DIR = app.getPath('userData');
 const DATA_DIR = path.join(USER_DATA_DIR, 'data');
 const USER_DATA_FILE = path.join(DATA_DIR, 'openleaf.db');
+
+// Device registration store
+const store = new Store({
+    name: 'device-settings',
+    defaults: {
+        deviceHasRegisteredAccount: false,
+    }
+});
 
 export class AuthService {
     private currentUser: User | null = null;
@@ -23,6 +32,7 @@ export class AuthService {
         
         try {
             this.loadDB();
+            this.loadCurrentUser();
         } catch (error) {
             console.error('Error in AuthService constructor:', error);
         }
@@ -52,13 +62,52 @@ export class AuthService {
         }
     }
 
-    // Log a user in.
-    public async logUserIn(id: string, masterPassword: string): Promise<boolean> {
+    /*
+        Get the current user object
+        Uses:
+            - AuthPage:
+                1. Get the current user object
+                2. Check if the user is logged in
+                3. If the user is logged in, set the page type to login
+                4. If the user is not logged in, set the page type to register
+    */
+    public async getCurrentUser(): Promise<User | null> {
+        return this.currentUser;
+    }
+
+    /*
+        Load the current user from the database
+        Uses:
+            - AuthService constructor:
+                1. Load the current user from the database
+                2. Set the current user
+    */
+    private async loadCurrentUser(){
+        try {
+            console.log('Loading current user from database');
+            console.log('Current user id:', store.get('currentUserID'));
+            this.currentUser = this.db?.prepare('SELECT * FROM users WHERE id = ?').get(store.get('currentUserID') as string) as User;
+            console.log('Current user loaded:', this.currentUser);
+        } catch (error) {
+            console.error('Error loading current user:', error);
+        }
+    }
+
+    /*
+        Log a user in
+        Uses:
+            - AuthPage:
+                1. Log a user in
+            - Resets the expiration time to 30 days
+    */
+    public async logUserIn(nickname: string, masterPassword: string): Promise<boolean> {
         try {
             // Check if the user exists
-            const user = this.db?.prepare('SELECT * FROM users WHERE id = ?').get(id);
+            const user = this.db?.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname);
             if (!user) return false;
             this.currentUser = user as User;
+
+            console.log('currentUser', this.currentUser);
 
             // Check if the password is correct
             const isPasswordCorrect = await bcrypt.compare(masterPassword, this.currentUser.masterPassword);
@@ -70,6 +119,8 @@ export class AuthService {
             // Update the user in the database
             this.updateUser();
 
+            store.set('currentUserID', this.currentUser.id);
+
             console.log('User logged in:', this.currentUser);
 
             return true;
@@ -78,31 +129,12 @@ export class AuthService {
             return false;
         }
     }
-
-    // Check if the user is logged in by comparing the session expires at to the current date
-    public async isLoggedIn(): Promise<boolean> {
-        if (!this.currentUser) return false;
-        return this.currentUser.sessionExpiresAt > new Date().toISOString();
-    }
-
-    // Set the current user from a given id
-    public async setCurrentUser(id: string) {
-        try {
-            const user = this.db?.prepare('SELECT * FROM users WHERE id = ?').get(id);
-            if (!user) return;
-            this.currentUser = user as User;
-        } catch (error) {
-            console.error('Error setting current user:', error);
-        }
-    }
     
-    // Update the user in the database
+    // Update the user in the database with the current user object
     private async updateUser(){
         try {
-            this.db?.prepare('UPDATE users SET nickname = ?, phoneNumber = ?, email = ?, masterPassword = ?, sessionExpiresAt = ? WHERE id = ?').run(
+            this.db?.prepare('UPDATE users SET nickname = ?, masterPassword = ?, sessionExpiresAt = ? WHERE id = ?').run(
                 this.currentUser?.nickname, 
-                this.currentUser?.phoneNumber, 
-                this.currentUser?.email, 
                 this.currentUser?.masterPassword, 
                 this.currentUser?.sessionExpiresAt, 
                 this.currentUser?.id
@@ -112,14 +144,20 @@ export class AuthService {
         }
     }
 
-    // Add a new user to the database
-    private async register(user: User) {
+    /*
+        Register a new user
+        Uses:
+            - AuthPage:
+                1. Register a new user
+            - Adds the user to the database
+    */
+    public async register(user: User): Promise<boolean> {
         try {
             // Check if the user already exists
-            const userExists = this.db?.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+            const userExists = this.db?.prepare('SELECT * FROM users WHERE nickname = ?').get(user.nickname);
             if (userExists) {
                 console.log('User already exists');
-                return;
+                return false;
             }
 
             // Hash the user's master password
@@ -130,18 +168,22 @@ export class AuthService {
             }
 
             // Insert the user into the database
-            this.db?.prepare('INSERT INTO users (id, nickname, phoneNumber, email, masterPassword, sessionExpiresAt, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+            this.db?.prepare('INSERT INTO users (id, nickname, masterPassword, sessionExpiresAt, createdAt) VALUES (?, ?, ?, ?, ?)').run(
                 newUser.id, 
                 newUser.nickname, 
-                newUser.phoneNumber, 
-                newUser.email, 
                 newUser.masterPassword, 
                 newUser.sessionExpiresAt, 
                 newUser.createdAt
             );
+            
+            // Set the current user id
+            store.set('currentUserID', newUser.id);
+
             console.log('User added successfully');
+            return true;
         } catch (error) {
             console.error('Error adding user:', error);
+            return false;
         }
     }
 }

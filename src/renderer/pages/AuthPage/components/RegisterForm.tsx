@@ -1,27 +1,38 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import PasswordInput from './PasswordInput';
-import ContactInfoInput from './ContactInfoInput';
 
 interface RegisterFormProps {
     onRegister?: (success: boolean) => void;
 }
 
 interface RegisterFormData {
-    contactInfo: string;
+    name: string;
     masterPassword: string;
     confirmPassword: string;
 }
 
 const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister }) => {
     const [registerData, setRegisterData] = useState<RegisterFormData>({
-        contactInfo: '',
+        name: '',
         masterPassword: '',
         confirmPassword: ''
     });
     
     const [error, setError] = useState('');
     const [isRegistering, setIsRegistering] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+
+    // Show toast when error is set
+    useEffect(() => {
+        if (error) {
+            setShowToast(true);
+            const timer = setTimeout(() => {
+                setShowToast(false);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [error]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -42,39 +53,28 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister }) => {
         
         try {
             // Prepare user data for registration
-            // Determine if contactInfo is email or phone number
-            const isEmail = registerData.contactInfo.includes('@');
             
             const userToRegister = {
                 id: uuidv4().toString(),
-                nickname: isEmail ? registerData.contactInfo.split('@')[0] : registerData.contactInfo,
-                email: isEmail ? registerData.contactInfo : '',
-                phoneNumber: !isEmail ? registerData.contactInfo : '',
+                nickname: registerData.name,
                 masterPassword: registerData.masterPassword,
                 sessionExpiresAt: '0',
                 createdAt: new Date().toISOString()
             };
             
-            console.log(userToRegister);
-            
-            // Check if electronAPI is available
-            if (typeof window.electronAPI === 'undefined' || !window.electronAPI.register) {
-                console.error('electronAPI.register is not available');
-                setError('Registration API is not available. Please contact support.');
-                
-                // Simulate successful registration for development if API not available
-                if (process.env.NODE_ENV === 'development') {
-                    console.log('Development mode: Simulating successful registration');
-                    if (onRegister) {
-                        setTimeout(() => onRegister(true), 1000);
-                    }
+            console.log('User to register:', userToRegister);
+
+            const res: boolean = await window.electronAPI.register(userToRegister);
+            if (res) {
+                if (onRegister) {
+                    console.log('Registration successful');
+                    onRegister(true);
                 }
-                return;
-            }
-            
-            await window.electronAPI.register(userToRegister);
-            if (onRegister) {
-                onRegister(true);
+            } else {
+                setError('Registration failed. Please try again.');
+                if (onRegister) {
+                    onRegister(false);
+                }
             }
         } catch (error) {
             console.error('Registration error:', error);
@@ -88,50 +88,86 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister }) => {
     };
 
     return (
-        <div className="flex-1 p-8">
-            <h2 className="text-2xl font-bold text-center mb-6">Register</h2>
-            <form onSubmit={handleSubmit}>
-                <ContactInfoInput name="contactInfo" onChange={handleChange} value={registerData.contactInfo} />
-                
-                <div className="form-control mb-4">
-                    <label className="label">
-                        <span className="label-text">Master Password</span>
-                    </label>
-                    <PasswordInput name="masterPassword" onChange={handleChange} value={registerData.masterPassword} placeholder="Enter your master password" />
+        <div className="w-full flex flex-col">
+            <div className="flex-1 p-8">
+                <div className="text-center mb-8">
+                    <div className="font-bold text-3xl mb-2">Create Account</div>
+                    <p className="text-base-content/60">Create your master password to get started</p>
                 </div>
                 
-                <div className="form-control mb-6">
-                    <label className="label">
-                        <span className="label-text">Confirm Password</span>
-                    </label>
-                    <PasswordInput name="confirmPassword" onChange={handleChange} value={registerData.confirmPassword} placeholder="Confirm your master password" />
-                </div>
-                
-                {error && (
-                    <div className="alert alert-error mb-4">
-                        <span>{error}</span>
+                <form onSubmit={handleSubmit} className="max-w-md mx-auto">
+                    <div className="form-control mb-6">
+                        <label className="label">
+                            <span className="label-text">Your Name</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            name="name"
+                            value={registerData.name}
+                            onChange={handleChange}
+                            className="input bg-base-200 transition-all duration-300 ease-in-out border-base-300 focus:outline-none focus:border-primary focus:ring-0" 
+                            placeholder="John Doe"
+                            required 
+                        />
                     </div>
-                )}
-                
-                <div className="form-control mt-10">
-                    <button 
-                        type="submit" 
-                        className={`
-                            btn btn-primary relative overflow-hidden
-                            transition-all duration-300 ease-out
-                            hover:shadow-md hover:scale-[1.02] active:scale-[0.98]
-                            hover:bg-primary/90 
-                            after:absolute after:inset-0 after:bg-gradient-to-r after:from-transparent after:via-white/30 after:to-transparent
-                            after:opacity-0 hover:after:opacity-100 after:-translate-x-full hover:after:translate-x-full
-                            after:transition-all after:duration-700 after:ease-in-out
-                            ${isRegistering ? 'loading' : ''}
-                        `}
-                        disabled={isRegistering}
-                    >
-                        {isRegistering ? 'Creating Account...' : 'Register'}
-                    </button>
+                    
+                    <div className="form-control mb-4">
+                        <label className="label">
+                            <span className="label-text">Master Password</span>
+                        </label>
+                        <PasswordInput 
+                            name="masterPassword"
+                            onChange={handleChange}
+                            value={registerData.masterPassword}
+                            placeholder="Enter your master password"
+                        />
+                    </div>
+                    
+                    <div className="form-control mb-6">
+                        <label className="label">
+                            <span className="label-text">Confirm Password</span>
+                        </label>
+                        <PasswordInput 
+                            name="confirmPassword"
+                            onChange={handleChange}
+                            value={registerData.confirmPassword}
+                            placeholder="Confirm your master password"
+                        />
+                    </div>
+                    
+                    <div className="form-control mt-10">
+                        <button 
+                            type="submit" 
+                            className={`
+                                btn btn-primary relative overflow-hidden group
+                                transition-all duration-300 ease-out
+                                hover:shadow-md hover:scale-[1.02] active:scale-[0.98]
+                                before:absolute before:inset-0 before:bg-white/20 
+                                before:translate-x-[-100%] hover:before:translate-x-[100%]
+                                before:transition-transform before:duration-500 before:ease-in-out
+                                ${isRegistering ? 'loading' : ''}
+                            `}
+                            disabled={isRegistering}
+                        >
+                            {isRegistering ? 'Creating Account...' : 'Register'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {/* Toast notification for errors */}
+            {showToast && error && (
+                <div className="toast toast-top toast-center mt-50">
+                    <div className="alert alert-error">
+                        <div className="flex items-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>{error}</span>
+                        </div>
+                    </div>
                 </div>
-            </form>
+            )}
         </div>
     );
 };

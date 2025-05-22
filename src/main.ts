@@ -86,14 +86,14 @@ app.on('activate', () => {
     }
 });
 
-ipcMain.handle('auth:login', async (event, id: string, masterPassword: string) => {
-    return authService.logUserIn(id, masterPassword);
-});
-
-ipcMain.handle('auth:isLoggedIn', async (event) => {
-    return authService.isLoggedIn();
+ipcMain.handle('auth:login', async (event, nickname: string, masterPassword: string) => {
+    return authService.logUserIn(nickname, masterPassword);
 });
 
 ipcMain.handle('auth:register', async (event, user: User) => {
     return authService.register(user);
+});
+
+ipcMain.handle('auth:getCurrentUser', async (event) => {
+    return authService.getCurrentUser();
 });
