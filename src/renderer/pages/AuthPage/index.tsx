@@ -3,18 +3,12 @@ import LoginForm from './components/LoginForm';
 import RegisterForm from './components/RegisterForm';
 import { User } from 'src/types/userTypes';
 
-// Declare window.electronAPI type globally to ensure it's available in all components
-declare global {
-    interface Window {
-        electronAPI: {
-            login: (nickname: string, masterPassword: string) => Promise<boolean>;
-            register: (user: any) => Promise<boolean>;
-            getCurrentUser: () => Promise<User>;
-        }
-    }
+interface AuthPageProps {
+    currentUser: User | null;
+    changePage: (page: string) => void;
 }
 
-const AuthPage: React.FC = () => {
+const AuthPage: React.FC<AuthPageProps> = ({currentUser, changePage}) => {
     const [authSuccess, setAuthSuccess] = useState({
         login: false,
         register: false
@@ -22,27 +16,14 @@ const AuthPage: React.FC = () => {
     
     const [pageType, setPageType] = useState<'login' | 'register'>('login');
 
-    useEffect(() => {
-        const checkCurrentUser = async () => {
-            const currentUser = await window.electronAPI.getCurrentUser();
-            if (currentUser) {
-                setPageType('login');
-            } else {
-                setPageType('register');
-            }
-        };
-
-        checkCurrentUser();
-    }, []);
-
     const handleLoginSuccess = (success: boolean) => {
         setAuthSuccess(prev => ({ ...prev, login: success }));
-        // Handle redirect or other post-login actions
+        changePage('page1');
     };
 
     const handleRegisterSuccess = (success: boolean) => {
         setAuthSuccess(prev => ({ ...prev, register: success }));
-        // Handle redirect or other post-registration actions
+        changePage('page1');
     };
 
     const switchPageType = (type: string) => {
@@ -58,7 +39,7 @@ const AuthPage: React.FC = () => {
                 <div className="card-body">
                     {pageType === 'login' ? (
                         <>
-                            <LoginForm onLogin={handleLoginSuccess} />
+                            <LoginForm onLogin={handleLoginSuccess} currentUser={currentUser} />
                             <div className="text-center mt-0">
                                 <p className="text-sm">
                                     Don't have an account?{' '}

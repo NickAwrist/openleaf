@@ -4,25 +4,16 @@ import { User } from 'src/types/userTypes';
 
 interface LoginFormProps {
     onLogin?: (success: boolean) => void;
+    currentUser: User | null;
 }
 
-const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
+const LoginForm: React.FC<LoginFormProps> = ({ onLogin, currentUser }) => {
     const [masterPassword, setMasterPassword] = useState('');
     const [nickname, setNickname] = useState('');
     const [error, setError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
     const [showToast, setShowToast] = useState(false);
     const [differentUser, setDifferentUser] = useState(false);
-    const [currentUser, setCurrentUser] = useState<User | null>(null);
-
-    useEffect(() => {
-        const getCurrentUser = async () => {
-            const user = await window.electronAPI.getCurrentUser();
-            setCurrentUser(user);
-        };
-        getCurrentUser();
-        console.log('currentUser', currentUser);
-    }, []);
     
     // Show toast when error is set
     useEffect(() => {
@@ -37,6 +28,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
 
     const handleNicknameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setNickname(e.target.value);
+        console.log('nickname changed to:', nickname);
     };
     const handleMasterPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setMasterPassword(e.target.value);
@@ -48,23 +40,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin }) => {
         setIsLoggingIn(true);
         
         try {
-            // Check if electronAPI is available
-            if (typeof window.electronAPI === 'undefined' || !window.electronAPI.login) {
-                console.error('electronAPI.login is not available');
-                setError('Login API is not available. Please contact support.');
-                
-                // Simulate successful login for development if API not available
-                if (process.env.NODE_ENV === 'development') {
-                    console.log('Development mode: Simulating successful login');
-                    if (onLogin) {
-                        setTimeout(() => onLogin(true), 1000);
-                    }
-                }
-                return;
+            
+            console.log('currentUser', currentUser);
+            console.log('Logging in with:', nickname, masterPassword);
+
+            let nicknameToUse = nickname;
+            if(!differentUser && currentUser){
+                nicknameToUse = currentUser.nickname;
             }
-            console.log('nickname', nickname);
-            console.log('masterPassword', masterPassword);
-            const success = await window.electronAPI.login(nickname, masterPassword);
+
+            const success = await window.electronAPI.login(nicknameToUse, masterPassword);
             if (!success) {
                 setError('Invalid master password');
             }

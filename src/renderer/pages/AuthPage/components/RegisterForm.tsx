@@ -64,14 +64,15 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister }) => {
             
             console.log('User to register:', userToRegister);
 
-            const res: boolean = await window.electronAPI.register(userToRegister);
-            if (res) {
+            const res: {success: boolean, error?: string} = await window.electronAPI.register(userToRegister);
+            console.log('Registration response:', res.success, res.error);
+            if (res.success) {
                 if (onRegister) {
                     console.log('Registration successful');
                     onRegister(true);
                 }
             } else {
-                setError('Registration failed. Please try again.');
+                setError(res.error || 'Registration failed. Please try again.');
                 if (onRegister) {
                     onRegister(false);
                 }

@@ -102,12 +102,14 @@ export class AuthService {
     */
     public async logUserIn(nickname: string, masterPassword: string): Promise<boolean> {
         try {
+            console.log('Logging user in:', nickname, masterPassword);
             // Check if the user exists
             const user = this.db?.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname);
             if (!user) return false;
             this.currentUser = user as User;
 
-            console.log('currentUser', this.currentUser);
+            console.log('Current user:', this.currentUser);
+
 
             // Check if the password is correct
             const isPasswordCorrect = await bcrypt.compare(masterPassword, this.currentUser.masterPassword);
@@ -129,20 +131,6 @@ export class AuthService {
             return false;
         }
     }
-    
-    // Update the user in the database with the current user object
-    private async updateUser(){
-        try {
-            this.db?.prepare('UPDATE users SET nickname = ?, masterPassword = ?, sessionExpiresAt = ? WHERE id = ?').run(
-                this.currentUser?.nickname, 
-                this.currentUser?.masterPassword, 
-                this.currentUser?.sessionExpiresAt, 
-                this.currentUser?.id
-            );
-        } catch (error) {
-            console.error('Error updating user:', error);
-        }
-    }
 
     /*
         Register a new user
@@ -151,13 +139,13 @@ export class AuthService {
                 1. Register a new user
             - Adds the user to the database
     */
-    public async register(user: User): Promise<boolean> {
+    public async register(user: User): Promise<{success: boolean, error?: string}> {
         try {
             // Check if the user already exists
             const userExists = this.db?.prepare('SELECT * FROM users WHERE nickname = ?').get(user.nickname);
             if (userExists) {
                 console.log('User already exists');
-                return false;
+                return {success: false, error: 'User already exists'};
             }
 
             // Hash the user's master password
@@ -180,10 +168,24 @@ export class AuthService {
             store.set('currentUserID', newUser.id);
 
             console.log('User added successfully');
-            return true;
+            return {success: true};
         } catch (error) {
             console.error('Error adding user:', error);
-            return false;
+            return {success: false, error: 'Error adding user'};
         }
     }
+
+        // Update the user in the database with the current user object
+        private async updateUser(){
+            try {
+                this.db?.prepare('UPDATE users SET nickname = ?, masterPassword = ?, sessionExpiresAt = ? WHERE id = ?').run(
+                    this.currentUser?.nickname, 
+                    this.currentUser?.masterPassword, 
+                    this.currentUser?.sessionExpiresAt, 
+                    this.currentUser?.id
+                );
+            } catch (error) {
+                console.error('Error updating user:', error);
+            }
+        }
 }

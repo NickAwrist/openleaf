@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 
 import AuthPage from './pages/AuthPage';
+import { User } from 'src/types/userTypes';
+
+declare global {
+    interface Window {
+        electronAPI: {
+            getCurrentUser: () => Promise<User | null>;
+            login: (nickname: string, masterPassword: string) => Promise<boolean>;
+            register: (user: any) => Promise<{success: boolean, error?: string}>;
+        };
+    }
+}
 
 // Basic Component 1: Greeting
 const GreetingComponent = ({ name }: { name: string }) => {
@@ -49,6 +60,29 @@ const Page2 = () => (
 function App() {
     const [currentPage, setCurrentPage] = useState('auth');
 
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+    useEffect(() => {
+        const checkCurrentUser = async () => {
+            const currentUser = await window.electronAPI.getCurrentUser();
+            setCurrentUser(currentUser);
+        }
+        checkCurrentUser();
+    }, []);
+
+    useEffect(() => {
+        if(currentUser){
+            console.log('currentUser', currentUser);
+            if(currentUser.sessionExpiresAt < new Date().toISOString()){
+                console.log('Session expired, redirecting to auth');
+                setCurrentPage('auth');
+            }else{
+                console.log('Session not expired, redirecting to page1');
+                setCurrentPage('page1');
+            }
+        }
+    }, [currentUser]);
+
     return (
         <div className="min-h-screen flex flex-col bg-base-200">
             <div className="navbar bg-base-100 shadow-md">
@@ -80,7 +114,7 @@ function App() {
             </div>
             
             <main className="container mx-auto py-6 flex-grow">
-                {currentPage === 'auth' ? <AuthPage /> : currentPage === 'page1' ? <Page1 /> : <Page2 />}
+                {currentPage === 'auth' ? <AuthPage currentUser={currentUser} changePage={setCurrentPage} /> : currentPage === 'page1' ? <Page1 /> : <Page2 />}
             </main>
         </div>
     );
