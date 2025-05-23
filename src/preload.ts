@@ -14,6 +14,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     login: (nickname: string, masterPassword: string) => ipcRenderer.invoke('auth:login', nickname, masterPassword),
     register: (user: User) => ipcRenderer.invoke('auth:register', user),
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+
+    // Plaid functions
+    plaidSetup: () => ipcRenderer.invoke('plaid:setup'),
+    plaidInitialize: () => ipcRenderer.invoke('plaid:initialize'),
+    plaidCreateLinkToken: (clientUserId: string) => ipcRenderer.invoke('plaid:createLinkToken', clientUserId),
+    plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => ipcRenderer.invoke('plaid:exchangePublicToken', publicToken, friendlyName),
+    plaidClearCredentials: () => ipcRenderer.invoke('plaid:clearCredentials'),
 });
 
 // Basic preload debug

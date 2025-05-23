@@ -2,20 +2,29 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { AuthService } from './services/authService';
+import { PlaidService } from './services/plaid';
 import { User } from './types/userTypes';
+
+// Configure dotenv to load environment variables
+import dotenv from 'dotenv';
+dotenv.config();
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
     app.quit();
 }
 
 let authService: any;
+let plaidService: PlaidService;
 
 const createWindow = () => {
     // Create the browser window.
 
     console.log('createWindow');
     authService = new AuthService();
+    plaidService = new PlaidService();
     console.log('authService', authService);
+    console.log('plaidService', plaidService);
 
     console.log('PRELOAD PATH: ', path.join(__dirname, '../preload/preload.cjs'));
     
@@ -96,4 +105,45 @@ ipcMain.handle('auth:register', async (event, user: User) => {
 
 ipcMain.handle('auth:getCurrentUser', async (event) => {
     return authService.getCurrentUser();
+});
+
+// Plaid IPC handlers
+ipcMain.handle('plaid:setup', async (event) => {
+    const clientId = process.env.PLAID_CLIENT_ID;
+    const secret = process.env.PLAID_SECRET;
+    const password = process.env.USER_PASSWORD;
+    
+    if (!clientId || !secret || !password) {
+        return { success: false, error: 'Missing environment variables' };
+    }
+    
+    return plaidService.setupAndStorePlaidKeys(password, clientId, secret);
+});
+
+ipcMain.handle('plaid:initialize', async (event) => {
+    const password = process.env.USER_PASSWORD;
+    
+    if (!password) {
+        return { success: false, error: 'Missing USER_PASSWORD environment variable' };
+    }
+    
+    return plaidService.initializePlaidClientForSession(password);
+});
+
+ipcMain.handle('plaid:createLinkToken', async (event, clientUserId: string) => {
+    return plaidService.createLinkToken(clientUserId);
+});
+
+ipcMain.handle('plaid:exchangePublicToken', async (event, publicToken: string, friendlyName?: string) => {
+    const password = process.env.USER_PASSWORD;
+    
+    if (!password) {
+        return { success: false, error: 'Missing USER_PASSWORD environment variable' };
+    }
+    
+    return plaidService.exchangePublicToken(password, publicToken, friendlyName);
+});
+
+ipcMain.handle('plaid:clearCredentials', async (event) => {
+    return plaidService.clearStoredCredentials();
 });

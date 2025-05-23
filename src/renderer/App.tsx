@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import AuthPage from './pages/AuthPage';
+import PlaidTest from './pages/PlaidTest';
 import { User } from 'src/types/userTypes';
 
 declare global {
@@ -9,6 +10,11 @@ declare global {
             getCurrentUser: () => Promise<User | null>;
             login: (nickname: string, masterPassword: string) => Promise<boolean>;
             register: (user: any) => Promise<{success: boolean, error?: string}>;
+            plaidSetup: () => Promise<{success: boolean, error?: string}>;
+            plaidInitialize: () => Promise<{success: boolean, error?: string}>;
+            plaidCreateLinkToken: (clientUserId: string) => Promise<{success: boolean, error?: string, linkToken?: string}>;
+            plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => Promise<{success: boolean, error?: string, item?: any}>;
+            plaidClearCredentials: () => Promise<{success: boolean, error?: string}>;
         };
     }
 }
@@ -109,12 +115,22 @@ function App() {
                         >
                             Page 2
                         </a>
+                        <a 
+                            className={`tab ${currentPage === 'plaidtest' ? 'tab-active' : ''}`} 
+                            onClick={() => setCurrentPage('plaidtest')}
+                        >
+                            Plaid Test
+                        </a>
                     </div>
                 </div>
             </div>
             
-            <main className="container mx-auto py-6 flex-grow">
-                {currentPage === 'auth' ? <AuthPage currentUser={currentUser} changePage={setCurrentPage} /> : currentPage === 'page1' ? <Page1 /> : <Page2 />}
+            <main className="flex-grow overflow-auto">
+                {currentPage === 'auth' ? <AuthPage currentUser={currentUser} changePage={setCurrentPage} /> : 
+                 currentPage === 'page1' ? <Page1 /> : 
+                 currentPage === 'page2' ? <Page2 /> : 
+                 currentPage === 'plaidtest' ? <PlaidTest /> : 
+                 <Page1 />}
             </main>
         </div>
     );
