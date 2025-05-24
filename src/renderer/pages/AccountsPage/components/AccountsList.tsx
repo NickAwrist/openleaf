@@ -14,7 +14,7 @@ const AccountsList: React.FC<AccountsListProps> = ({ accounts }) => {
     }, [accounts]);
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="max-w-2xl mx-auto h-[70vh] overflow-y-auto space-y-3 pr-2">
             {accounts.map((account) => (
                 <AccountCard key={account.account_id} account={account} />
             ))}
