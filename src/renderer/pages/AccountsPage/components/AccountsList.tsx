@@ -1,12 +1,18 @@
 import { PlaidAccount } from "src/types/plaidTypes";
 
 import AccountCard from "./AccountCard";
+import { useEffect } from "react";
 
 interface AccountsListProps {
     accounts: PlaidAccount[];
 }
 
 const AccountsList: React.FC<AccountsListProps> = ({ accounts }) => {
+
+    useEffect(() => {
+        console.log('AccountsList accounts:', accounts);
+    }, [accounts]);
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {accounts.map((account) => (

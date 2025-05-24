@@ -1,15 +1,8 @@
-import { app, safeStorage } from "electron";
-import path from "node:path";
 import bcrypt from "bcryptjs";
-import Database from "better-sqlite3";
 import { User } from "src/types/userTypes";
-import * as fs from 'fs';
 import Store from 'electron-store';
+import { dbService as db } from "../main";
 
-// Make sure the data directory exists
-const USER_DATA_DIR = app.getPath('userData');
-const DATA_DIR = path.join(USER_DATA_DIR, 'data');
-const USER_DATA_FILE = path.join(DATA_DIR, 'openleaf.db');
 
 // Device registration store
 const store = new Store({
@@ -21,44 +14,12 @@ const store = new Store({
 
 export class AuthService {
     private currentUser: User | null = null;
-    private db: Database.Database | null = null;
     
     constructor() {
-        console.log('AuthService constructor');
-        // Ensure data directory exists
-        if (!fs.existsSync(DATA_DIR)) {
-            fs.mkdirSync(DATA_DIR, { recursive: true });
-        }
-        
         try {
-            this.loadDB();
             this.loadCurrentUser();
         } catch (error) {
             console.error('Error in AuthService constructor:', error);
-        }
-    }
-
-    // Load the database and users table
-    private loadDB(){
-        try {
-            console.log('Loading database from:', USER_DATA_FILE);
-            this.db = new Database(USER_DATA_FILE);
-            
-            this.db.exec(`
-                CREATE TABLE IF NOT EXISTS users (
-                    id TEXT PRIMARY KEY,
-                    nickname TEXT NOT NULL,
-                    phoneNumber TEXT,
-                    email TEXT,
-                    masterPassword TEXT NOT NULL,
-                    sessionExpiresAt TEXT,
-                    createdAt TEXT NOT NULL
-                )
-            `);
-            console.log('Database loaded and table created if needed');
-        } catch (error) {
-            console.error('Error loading database:', error);
-            throw error;
         }
     }
 
@@ -86,7 +47,7 @@ export class AuthService {
         try {
             console.log('Loading current user from database');
             console.log('Current user id:', store.get('currentUserID'));
-            this.currentUser = this.db?.prepare('SELECT * FROM users WHERE id = ?').get(store.get('currentUserID') as string) as User;
+            this.currentUser = await db.getUser(store.get('currentUserID') as string) as User;
             console.log('Current user loaded:', this.currentUser);
         } catch (error) {
             console.error('Error loading current user:', error);
@@ -104,7 +65,7 @@ export class AuthService {
         try {
             console.log('Logging user in:', nickname, masterPassword);
             // Check if the user exists
-            const user = this.db?.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname);
+            const user = await db.getUserByNickname(nickname);
             if (!user) return false;
             this.currentUser = user as User;
 
@@ -142,7 +103,7 @@ export class AuthService {
     public async register(user: User): Promise<{success: boolean, error?: string}> {
         try {
             // Check if the user already exists
-            const userExists = this.db?.prepare('SELECT * FROM users WHERE nickname = ?').get(user.nickname);
+            const userExists = await db.getUserByNickname(user.nickname);
             if (userExists) {
                 console.log('User already exists');
                 return {success: false, error: 'User already exists'};
@@ -156,13 +117,7 @@ export class AuthService {
             }
 
             // Insert the user into the database
-            this.db?.prepare('INSERT INTO users (id, nickname, masterPassword, sessionExpiresAt, createdAt) VALUES (?, ?, ?, ?, ?)').run(
-                newUser.id, 
-                newUser.nickname, 
-                newUser.masterPassword, 
-                newUser.sessionExpiresAt, 
-                newUser.createdAt
-            );
+            await db.addUser(newUser);
             
             // Set the current user id
             store.set('currentUserID', newUser.id);
@@ -178,12 +133,7 @@ export class AuthService {
         // Update the user in the database with the current user object
         private async updateUser(){
             try {
-                this.db?.prepare('UPDATE users SET nickname = ?, masterPassword = ?, sessionExpiresAt = ? WHERE id = ?').run(
-                    this.currentUser?.nickname, 
-                    this.currentUser?.masterPassword, 
-                    this.currentUser?.sessionExpiresAt, 
-                    this.currentUser?.id
-                );
+                db.updateUser(this.currentUser);
             } catch (error) {
                 console.error('Error updating user:', error);
             }

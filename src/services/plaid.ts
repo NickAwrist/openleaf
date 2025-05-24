@@ -1,7 +1,16 @@
-import { PlaidApi, Configuration, PlaidEnvironments, Products, CountryCode, LinkTokenCreateRequest, Transaction } from "plaid";
+import { PlaidApi, 
+    Configuration, 
+    PlaidEnvironments, 
+    Products, 
+    CountryCode, 
+    LinkTokenCreateRequest, 
+    Transaction
+} from "plaid";
 import Store from "electron-store";
 import { decrypt, EncryptedData, encrypt } from "./encryption";
 import { PlaidItem, PlaidAccount } from "../types/plaidTypes";
+import { addAccount } from "./accountService";
+import { authService } from "../main";
 
 export class PlaidService {
     private plaid: PlaidApi | null = null;
@@ -165,6 +174,8 @@ export class PlaidService {
 
             console.log('Stored item:', this.store.get('items'));
 
+            this.getAccounts();
+
             return { success: true, item };
         } catch (error) {
             console.log('Error exchanging public token:', error);
@@ -172,16 +183,16 @@ export class PlaidService {
         }
     }
 
-    public async getAccounts(): Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}> {
+    private async getAccounts(): Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}> {
         if(!this.plaid) {
             return { success: false, error: 'Plaid client not initialized' };
         }
 
-        console.log('Getting accounts');
-
         if (!this.decryptedAccessToken) {
             return { success: false, error: 'No access token available' };
         }
+
+        console.log('Getting accounts');
 
         try {
             const response = await this.plaid.accountsGet({
@@ -191,6 +202,29 @@ export class PlaidService {
             });
 
             console.log('Accounts:', response.data);
+            const institution_id = response.data.item.institution_id;
+            const institution_name = response.data.item.institution_name;
+
+            // Add accounts to database
+            const user = await authService.getCurrentUser();
+            if(!user) {
+                return { success: false, error: 'User not found' };
+            }
+            for (const account of response.data.accounts) {
+                const plaidAccount: PlaidAccount = {
+                    account_id: account.account_id,
+                    balances: account.balances,
+                    mask: account.mask,
+                    name: account.name,
+                    official_name: account.official_name,
+                    subtype: account.subtype,
+                    type: account.type,
+                    institution_id: institution_id,
+                    institution_name: institution_name
+                }
+                console.log('Adding account:', plaidAccount);
+                addAccount(plaidAccount, user.id);
+            }
 
             return { success: true, accounts: response.data.accounts };
         } catch (error) {
@@ -226,37 +260,6 @@ export class PlaidService {
             return { success: true };
         } catch (error) {
             return { success: false, error: 'Failed to clear credentials' };
-        }
-    }
-
-    public async getTransactions(itemId: string): Promise<{success: boolean, error?: string, transactions?: Transaction[]}> {
-        if(!this.plaid) {
-            return { success: false, error: 'Plaid client not initialized' };
-        }
-
-        console.log('Getting transactions for item:', itemId);
-
-        if (!this.decryptedAccessToken) {
-            return { success: false, error: 'No access token available' };
-        }
-
-        try {
-            const response = await this.plaid.transactionsSync({
-                access_token: this.decryptedAccessToken,
-                client_id: this.decryptedClientId,
-                secret: this.decryptedSecret,
-            });
-
-            console.log('Transactions:', response.data);
-
-            const accounts: PlaidAccount[] = response.data.accounts;
-
-            console.log('Accounts:', accounts);
-
-            return { success: true};
-        } catch (error) {
-            console.log('Error getting transactions:', error);
-            return { success: false, error: 'Failed to get transactions' };
         }
     }
 }

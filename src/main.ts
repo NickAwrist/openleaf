@@ -7,6 +7,9 @@ import { User } from './types/userTypes';
 
 // Configure dotenv to load environment variables
 import dotenv from 'dotenv';
+import { PlaidAccount } from './types/plaidTypes';
+import { DBService } from './services/dbService';
+import { getAccounts } from './services/accountService';
 dotenv.config();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -14,19 +17,17 @@ if (started) {
     app.quit();
 }
 
-let authService: any;
-let plaidService: PlaidService;
+export let authService: AuthService;
+export let plaidService: PlaidService;
+export let dbService: DBService;
 
 const createWindow = () => {
     // Create the browser window.
 
-    console.log('createWindow');
+    dbService = new DBService();
+
     authService = new AuthService();
     plaidService = new PlaidService();
-    console.log('authService', authService);
-    console.log('plaidService', plaidService);
-
-    console.log('PRELOAD PATH: ', path.join(__dirname, '../preload/preload.cjs'));
     
     const mainWindow = new BrowserWindow({
         width: 1200,
@@ -149,6 +150,14 @@ ipcMain.handle('plaid:clearCredentials', async (event) => {
 });
 
 ipcMain.handle('plaid:getAccounts', async (event) => {
-    return plaidService.getAccounts();
+    const user = await authService.getCurrentUser();
+    if(!user) {
+        return { success: false, error: 'User not found' };
+    }
+    try {
+        const accounts = await getAccounts(user.id);
+        return { success: true, accounts };
+    } catch (error) {
+        return { success: false, error: 'Failed to get accounts' };
+    }
 });
-

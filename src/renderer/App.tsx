@@ -4,6 +4,7 @@ import AuthPage from './pages/AuthPage';
 import PlaidTest from './pages/PlaidTest';
 import { User } from 'src/types/userTypes';
 import { PlaidAccount } from 'src/types/plaidTypes';
+import AccountsPage from './pages/AccountsPage';
 
 declare global {
     interface Window {
@@ -21,11 +22,6 @@ declare global {
     }
 }
 
-// Basic Component 1: Greeting
-const GreetingComponent = ({ name }: { name: string }) => {
-    return <h2 className="text-xl font-semibold text-primary mb-2">Hello, {name}! This is a basic component.</h2>;
-};
-
 // Basic Component 2: Counter
 const CounterComponent = () => {
     const [count, setCount] = useState(0);
@@ -39,19 +35,6 @@ const CounterComponent = () => {
         </div>
     );
 };
-
-const Page1 = () => (
-    <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-accent mb-4">Page 1: Greetings</h1>
-        <h2 className="text-xl font-semibold text-primary mb-2">Balance: $108.92</h2>
-        <div className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-                <GreetingComponent name="User" />
-                <p className="text-base-content">This page shows a simple greeting.</p>
-            </div>
-        </div>
-    </div>
-);
 
 const Page2 = () => (
     <div className="p-6 max-w-4xl mx-auto">
@@ -86,7 +69,7 @@ function App() {
                 setCurrentPage('auth');
             }else{
                 console.log('Session not expired, redirecting to page1');
-                setCurrentPage('page1');
+                setCurrentPage('accounts');
             }
         }
     }, [currentUser]);
@@ -106,10 +89,10 @@ function App() {
                             Auth
                         </a>
                         <a 
-                            className={`tab ${currentPage === 'page1' ? 'tab-active' : ''}`} 
-                            onClick={() => setCurrentPage('page1')}
+                            className={`tab ${currentPage === 'accounts' ? 'tab-active' : ''}`} 
+                            onClick={() => setCurrentPage('accounts')}
                         >
-                            Page 1
+                            Accounts
                         </a>
                         <a 
                             className={`tab ${currentPage === 'page2' ? 'tab-active' : ''}`} 
@@ -129,10 +112,10 @@ function App() {
             
             <main className="flex-grow overflow-auto">
                 {currentPage === 'auth' ? <AuthPage currentUser={currentUser} changePage={setCurrentPage} /> : 
-                 currentPage === 'page1' ? <Page1 /> : 
+                 currentPage === 'accounts' ? <AccountsPage /> : 
                  currentPage === 'page2' ? <Page2 /> : 
                  currentPage === 'plaidtest' ? <PlaidTest /> : 
-                 <Page1 />}
+                 <AccountsPage />}
             </main>
         </div>
     );
