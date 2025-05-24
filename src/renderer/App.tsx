@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import AuthPage from './pages/AuthPage';
 import PlaidTest from './pages/PlaidTest';
 import { User } from 'src/types/userTypes';
+import { PlaidAccount } from 'src/types/plaidTypes';
 
 declare global {
     interface Window {
@@ -15,6 +16,7 @@ declare global {
             plaidCreateLinkToken: (clientUserId: string) => Promise<{success: boolean, error?: string, linkToken?: string}>;
             plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => Promise<{success: boolean, error?: string, item?: any}>;
             plaidClearCredentials: () => Promise<{success: boolean, error?: string}>;
+            plaidGetAccounts: () => Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}>;
         };
     }
 }

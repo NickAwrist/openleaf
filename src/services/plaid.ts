@@ -1,12 +1,14 @@
-import { PlaidApi, Configuration, PlaidEnvironments, Products, CountryCode, LinkTokenCreateRequest } from "plaid";
+import { PlaidApi, Configuration, PlaidEnvironments, Products, CountryCode, LinkTokenCreateRequest, Transaction } from "plaid";
 import Store from "electron-store";
 import { decrypt, EncryptedData, encrypt } from "./encryption";
-import { PlaidItem } from "../types/plaidTypes";
+import { PlaidItem, PlaidAccount } from "../types/plaidTypes";
+
 export class PlaidService {
     private plaid: PlaidApi | null = null;
     private store: Store<{ secret: EncryptedData, clientId: EncryptedData, items: Record<string, PlaidItem> }>;
     private decryptedSecret: string | null = null;
     private decryptedClientId: string | null = null;
+    private decryptedAccessToken: string | null = null;
 
     constructor() {
         this.store = new Store({
@@ -139,6 +141,8 @@ export class PlaidService {
 
             console.log('Exchanged public token:', response.data);
 
+            this.decryptedAccessToken = accessToken;
+
             const encryptedAccessToken = encrypt(password, accessToken);
             if(!encryptedAccessToken) {
                 return { success: false, error: 'Failed to encrypt access token' };
@@ -168,6 +172,33 @@ export class PlaidService {
         }
     }
 
+    public async getAccounts(): Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}> {
+        if(!this.plaid) {
+            return { success: false, error: 'Plaid client not initialized' };
+        }
+
+        console.log('Getting accounts');
+
+        if (!this.decryptedAccessToken) {
+            return { success: false, error: 'No access token available' };
+        }
+
+        try {
+            const response = await this.plaid.accountsGet({
+                access_token: this.decryptedAccessToken,
+                client_id: this.decryptedClientId,
+                secret: this.decryptedSecret
+            });
+
+            console.log('Accounts:', response.data);
+
+            return { success: true, accounts: response.data.accounts };
+        } catch (error) {
+            console.log('Error getting accounts:', error);
+            return { success: false, error: 'Failed to get accounts' };
+        }
+    }
+
     public async clearStoredCredentials(): Promise<{success: boolean, error?: string}> {
         try {
             console.log('Clearing stored Plaid credentials');
@@ -191,9 +222,41 @@ export class PlaidService {
             this.plaid = null;
             
             console.log('Cleared stored credentials');
+
             return { success: true };
         } catch (error) {
             return { success: false, error: 'Failed to clear credentials' };
+        }
+    }
+
+    public async getTransactions(itemId: string): Promise<{success: boolean, error?: string, transactions?: Transaction[]}> {
+        if(!this.plaid) {
+            return { success: false, error: 'Plaid client not initialized' };
+        }
+
+        console.log('Getting transactions for item:', itemId);
+
+        if (!this.decryptedAccessToken) {
+            return { success: false, error: 'No access token available' };
+        }
+
+        try {
+            const response = await this.plaid.transactionsSync({
+                access_token: this.decryptedAccessToken,
+                client_id: this.decryptedClientId,
+                secret: this.decryptedSecret,
+            });
+
+            console.log('Transactions:', response.data);
+
+            const accounts: PlaidAccount[] = response.data.accounts;
+
+            console.log('Accounts:', accounts);
+
+            return { success: true};
+        } catch (error) {
+            console.log('Error getting transactions:', error);
+            return { success: false, error: 'Failed to get transactions' };
         }
     }
 }
@@ -213,5 +276,4 @@ export class PlaidService {
     createLinkToken returns a link token that is used to initialize the Plaid link.
     The user is redirected to the Plaid link where they can enter their credentials and authorize the app.
     When the user successfully links their account, the account is added to the store.
-
 */

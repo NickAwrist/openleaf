@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     plaidCreateLinkToken: (clientUserId: string) => ipcRenderer.invoke('plaid:createLinkToken', clientUserId),
     plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => ipcRenderer.invoke('plaid:exchangePublicToken', publicToken, friendlyName),
     plaidClearCredentials: () => ipcRenderer.invoke('plaid:clearCredentials'),
+    plaidGetAccounts: () => ipcRenderer.invoke('plaid:getAccounts'),
 });
 
 // Basic preload debug

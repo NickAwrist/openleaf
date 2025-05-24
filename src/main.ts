@@ -147,3 +147,8 @@ ipcMain.handle('plaid:exchangePublicToken', async (event, publicToken: string, f
 ipcMain.handle('plaid:clearCredentials', async (event) => {
     return plaidService.clearStoredCredentials();
 });
+
+ipcMain.handle('plaid:getAccounts', async (event) => {
+    return plaidService.getAccounts();
+});
+
