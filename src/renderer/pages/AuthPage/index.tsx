@@ -9,21 +9,15 @@ interface AuthPageProps {
 }
 
 const AuthPage: React.FC<AuthPageProps> = ({currentUser, changePage}) => {
-    const [authSuccess, setAuthSuccess] = useState({
-        login: false,
-        register: false
-    });
     
     const [pageType, setPageType] = useState<'login' | 'register'>('login');
 
-    const handleLoginSuccess = (success: boolean) => {
-        setAuthSuccess(prev => ({ ...prev, login: success }));
-        changePage('page1');
+    const handleLoginSuccess = () => {
+        changePage('accounts');
     };
 
-    const handleRegisterSuccess = (success: boolean) => {
-        setAuthSuccess(prev => ({ ...prev, register: success }));
-        changePage('page1');
+    const handleRegisterSuccess = () => {
+        changePage('plaid-setup');
     };
 
     const switchPageType = (type: string) => {

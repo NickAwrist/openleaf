@@ -2,14 +2,11 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { AuthService } from './services/authService';
-import { PlaidService } from './services/plaid';
-import { User } from './types/userTypes';
-
+import { PlaidService } from './services/plaidService';
 // Configure dotenv to load environment variables
 import dotenv from 'dotenv';
-import { PlaidAccount } from './types/plaidTypes';
 import { DBService } from './services/dbService';
-import { getAccounts } from './services/accountService';
+import { getAccounts } from './utils/accountUtils';
 dotenv.config();
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -27,6 +24,7 @@ const createWindow = () => {
     dbService = new DBService();
 
     authService = new AuthService();
+
     plaidService = new PlaidService();
     
     const mainWindow = new BrowserWindow({
@@ -100,8 +98,8 @@ ipcMain.handle('auth:login', async (event, nickname: string, masterPassword: str
     return authService.logUserIn(nickname, masterPassword);
 });
 
-ipcMain.handle('auth:register', async (event, user: User) => {
-    return authService.register(user);
+ipcMain.handle('auth:register', async (event, nickname: string, masterPassword: string) => {
+    return authService.register(nickname, masterPassword);
 });
 
 ipcMain.handle('auth:getCurrentUser', async (event) => {
@@ -109,39 +107,15 @@ ipcMain.handle('auth:getCurrentUser', async (event) => {
 });
 
 // Plaid IPC handlers
-ipcMain.handle('plaid:setup', async (event) => {
-    const clientId = process.env.PLAID_CLIENT_ID;
-    const secret = process.env.PLAID_SECRET;
-    const password = process.env.USER_PASSWORD;
-    
-    if (!clientId || !secret || !password) {
-        return { success: false, error: 'Missing environment variables' };
-    }
-    
+ipcMain.handle('plaid:setup', async (event, password: string, clientId: string, secret: string) => {
     return plaidService.setupAndStorePlaidKeys(password, clientId, secret);
-});
-
-ipcMain.handle('plaid:initialize', async (event) => {
-    const password = process.env.USER_PASSWORD;
-    
-    if (!password) {
-        return { success: false, error: 'Missing USER_PASSWORD environment variable' };
-    }
-    
-    return plaidService.initializePlaidClientForSession(password);
 });
 
 ipcMain.handle('plaid:createLinkToken', async (event, clientUserId: string) => {
     return plaidService.createLinkToken(clientUserId);
 });
 
-ipcMain.handle('plaid:exchangePublicToken', async (event, publicToken: string, friendlyName?: string) => {
-    const password = process.env.USER_PASSWORD;
-    
-    if (!password) {
-        return { success: false, error: 'Missing USER_PASSWORD environment variable' };
-    }
-    
+ipcMain.handle('plaid:exchangePublicToken', async (event, password: string, publicToken: string, friendlyName?: string) => {
     return plaidService.exchangePublicToken(password, publicToken, friendlyName);
 });
 
@@ -150,7 +124,7 @@ ipcMain.handle('plaid:clearCredentials', async (event) => {
 });
 
 ipcMain.handle('plaid:getAccounts', async (event) => {
-    const user = await authService.getCurrentUser();
+    const user = authService.getCurrentUser();
     if(!user) {
         return { success: false, error: 'User not found' };
     }

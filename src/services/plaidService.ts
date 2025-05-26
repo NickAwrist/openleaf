@@ -4,48 +4,56 @@ import { PlaidApi,
     Products, 
     CountryCode, 
     LinkTokenCreateRequest, 
-    Transaction
+    Transaction,
 } from "plaid";
-import Store from "electron-store";
-import { decrypt, EncryptedData, encrypt } from "./encryption";
+import { decrypt, EncryptedData, encrypt } from "../utils/encryption";
 import { PlaidItem, PlaidAccount } from "../types/plaidTypes";
-import { addAccount } from "./accountService";
 import { authService } from "../main";
+import { User } from "src/types/userTypes";
+import { dbService as db } from "../main";
 
 export class PlaidService {
     private plaid: PlaidApi | null = null;
-    private store: Store<{ secret: EncryptedData, clientId: EncryptedData, items: Record<string, PlaidItem> }>;
     private decryptedSecret: string | null = null;
     private decryptedClientId: string | null = null;
     private decryptedAccessToken: string | null = null;
 
+    private user: User | null = null;
+
     constructor() {
-        this.store = new Store({
-            name: 'plaid-credentials',
-            defaults: {
-                secret: {
-                    salt: '',
-                    iv: '',
-                    encryptedText: '',
-                    authTag: ''
-                },
-                clientId: {
-                    salt: '',
-                    iv: '',
-                    encryptedText: '',
-                    authTag: ''
-                },
-                items: {}
-            }
-        });
+        this.user = authService.getCurrentUser();
+    }
+
+    public async decryptCredentials(password: string): Promise<{success: boolean, error?: string}> {
+        if(!this.user) {
+            return { success: false, error: 'User not found' };
+        }
+        
+        if(this.user.encryptedPlaidSecret){
+            this.decryptedSecret = decrypt(this.user.encryptedPlaidSecret, password);
+        }
+        if(this.user.encryptedPlaidClientId){
+            this.decryptedClientId = decrypt(this.user.encryptedPlaidClientId, password);
+        }
+        if(this.user.encryptedPlaidAccessToken){
+            this.decryptedAccessToken = decrypt(this.user.encryptedPlaidAccessToken, password);
+        }
+
+        return { success: true };
     }
 
     public async setupAndStorePlaidKeys(password: string, clientId: string, secret: string): Promise<{success: boolean, error?: string}> {
         console.log('Initializing Plaid');
+
+        this.user = authService.getCurrentUser();
         
+        // Set decrypted credentials
+        this.decryptedClientId = clientId;
+        this.decryptedSecret = secret;
+
         // Encrypt incoming credentials
-        const encryptedSecret = encrypt(secret, password);
         const encryptedClientId = encrypt(clientId, password);
+        const encryptedSecret = encrypt(secret, password);
 
         // Check if encryption was successful
         if (!encryptedSecret || !encryptedClientId) {
@@ -55,52 +63,41 @@ export class PlaidService {
         console.log('Encrypted credentials');
 
         // Store encrypted credentials
-        // TODO: Store relative to user
-        this.store.set('secret', encryptedSecret);
-        this.store.set('clientId', encryptedClientId);
+        console.log('User:', this.user);
+        this.user.encryptedPlaidClientId = encryptedClientId;
+        this.user.encryptedPlaidSecret = encryptedSecret;
 
-        this.store.set('items', {});
+        // Update user in database
+        await db.updateUser(this.user);
 
         console.log('Stored credentials');
 
+        await this.initializePlaidClientForSession();
+        await this.getAccounts();
         return { success: true };
     }
 
-    public async initializePlaidClientForSession(password: string): Promise<{success: boolean, error?: string}> {
+    public async initializePlaidClientForSession(): Promise<{success: boolean, error?: string}> {
+
+        if(!this.user) {
+            return { success: false, error: 'User not found' };
+        }
 
         console.log('Starting Plaid client');
 
-        // Get stored credentials
-        const storedSecret = this.store.get('secret') as EncryptedData;
-        const storedClientId = this.store.get('clientId') as EncryptedData;
-        
-        // Check if credentials exist and are valid (not empty defaults)
-        if (!storedSecret || !storedClientId || 
-            !storedSecret.encryptedText || !storedClientId.encryptedText ||
-            storedSecret.encryptedText === '' || storedClientId.encryptedText === '') {
-            return { success: false, error: 'No encrypted credentials found. Please run setup first.' };
+        try{
+            // Initialize Plaid client
+            this.plaid = new PlaidApi(new Configuration({
+                basePath: PlaidEnvironments.sandbox,
+                baseOptions: {
+                    headers: { 'PLAID_CLIENT_ID': this.decryptedClientId, 'PLAID_SECRET': this.decryptedSecret }
+                }
+            }));
+        } catch (error) {
+            console.log('Error initializing Plaid client:', error);
+            return { success: false, error: 'Failed to initialize Plaid client' };
         }
-
-        // Decrypt credentials
-        this.decryptedSecret = decrypt(storedSecret, password);
-        this.decryptedClientId = decrypt(storedClientId, password);
         
-        if (!this.decryptedSecret || !this.decryptedClientId) {
-            return { success: false, error: 'Failed to decrypt credentials. Please check your password or run setup again.' };
-        }
-
-        console.log('Decrypted credentials');
-
-        // Initialize Plaid client
-        this.plaid = new PlaidApi(new Configuration({
-            basePath: PlaidEnvironments.sandbox,
-            baseOptions: {
-                headers: { 'PLAID_CLIENT_ID': this.decryptedClientId, 'PLAID_SECRET': this.decryptedSecret }
-            }
-        }));
-
-        console.log('Plaid client initialized:', this.plaid);
-
         return { success: true };
     }
 
@@ -146,7 +143,7 @@ export class PlaidService {
                 client_id: this.decryptedClientId,
                 secret: this.decryptedSecret
             });
-            const { access_token: accessToken, item_id: itemId } = response.data;
+            const { access_token: accessToken } = response.data;
 
             console.log('Exchanged public token:', response.data);
 
@@ -157,26 +154,12 @@ export class PlaidService {
                 return { success: false, error: 'Failed to encrypt access token' };
             }
 
-            console.log('Encrypted access token:', encryptedAccessToken);
+            this.user.encryptedPlaidAccessToken = encryptedAccessToken;
+            await db.updateUser(this.user);
 
-            const item: PlaidItem = {
-                itemId,
-                friendlyName: friendlyName || itemId,
-                encryptedAccessToken: encryptedAccessToken
-            };
+            await this.getAccounts();
 
-            console.log('Item:', item);
-
-            // Store item
-            const currentItems = (this.store.get('items') as Record<string, PlaidItem>) || {};
-            currentItems[itemId] = item;
-            this.store.set('items', currentItems);
-
-            console.log('Stored item:', this.store.get('items'));
-
-            this.getAccounts();
-
-            return { success: true, item };
+            return { success: true };
         } catch (error) {
             console.log('Error exchanging public token:', error);
             return { success: false, error: 'Failed to exchange public token' };
@@ -205,11 +188,6 @@ export class PlaidService {
             const institution_id = response.data.item.institution_id;
             const institution_name = response.data.item.institution_name;
 
-            // Add accounts to database
-            const user = await authService.getCurrentUser();
-            if(!user) {
-                return { success: false, error: 'User not found' };
-            }
             for (const account of response.data.accounts) {
                 const plaidAccount: PlaidAccount = {
                     account_id: account.account_id,
@@ -223,7 +201,7 @@ export class PlaidService {
                     institution_name: institution_name
                 }
                 console.log('Adding account:', plaidAccount);
-                addAccount(plaidAccount, user.id);
+                await db.addAccount(plaidAccount, this.user.id);
             }
 
             return { success: true, accounts: response.data.accounts };
@@ -234,49 +212,10 @@ export class PlaidService {
     }
 
     public async clearStoredCredentials(): Promise<{success: boolean, error?: string}> {
-        try {
-            console.log('Clearing stored Plaid credentials');
-            
-            // Reset to default empty values
-            this.store.set('secret', {
-                salt: '',
-                iv: '',
-                encryptedText: '',
-                authTag: ''
-            });
-            this.store.set('clientId', {
-                salt: '',
-                iv: '',
-                encryptedText: '',
-                authTag: ''
-            });
-            this.store.set('items', {});
-            
-            // Clear the current Plaid client
-            this.plaid = null;
-            
-            console.log('Cleared stored credentials');
-
-            return { success: true };
-        } catch (error) {
-            return { success: false, error: 'Failed to clear credentials' };
-        }
+        this.user.encryptedPlaidClientId = null;
+        this.user.encryptedPlaidSecret = null;
+        this.user.encryptedPlaidAccessToken = null;
+        await db.updateUser(this.user);
+        return { success: true };
     }
 }
-
-/*
-    Flow:
-    
-    When a user adds a new account (Nickname and password), they are prompted to link their Plaid account.
-    The user clicks "Link Account" and are prompted for their Plaid client id and secret.
-    The user enters this information along with their OpenLeaf password and setupAndStorePlaidKeys is called.
-
-    setupAndStorePlaidKeys will encrypt the credentials and store them in the store.
-
-    When the user logs in, we decrypt the credentials and initialize the Plaid client with initializePlaidClientForSession.
-
-    To add a new account, the user clicks "Add Account". This calls createLinkToken.
-    createLinkToken returns a link token that is used to initialize the Plaid link.
-    The user is redirected to the Plaid link where they can enter their credentials and authorize the app.
-    When the user successfully links their account, the account is added to the store.
-*/

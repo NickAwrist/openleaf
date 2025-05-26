@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
 import AuthPage from './pages/AuthPage';
-import PlaidTest from './pages/PlaidTest';
+import PlaidSetup from './pages/PlaidSetup';
 import { User } from 'src/types/userTypes';
 import { PlaidAccount } from 'src/types/plaidTypes';
 import AccountsPage from './pages/AccountsPage';
@@ -11,42 +11,15 @@ declare global {
         electronAPI: {
             getCurrentUser: () => Promise<User | null>;
             login: (nickname: string, masterPassword: string) => Promise<boolean>;
-            register: (user: any) => Promise<{success: boolean, error?: string}>;
-            plaidSetup: () => Promise<{success: boolean, error?: string}>;
-            plaidInitialize: () => Promise<{success: boolean, error?: string}>;
+            register: (nickname: string, masterPassword: string) => Promise<{success: boolean, error?: string}>;
+            plaidSetup: (password: string, clientId: string, secret: string) => Promise<{success: boolean, error?: string}>;
             plaidCreateLinkToken: (clientUserId: string) => Promise<{success: boolean, error?: string, linkToken?: string}>;
-            plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => Promise<{success: boolean, error?: string, item?: any}>;
+            plaidExchangePublicToken: (password: string, publicToken: string, friendlyName?: string) => Promise<{success: boolean, error?: string, item?: any}>;
             plaidClearCredentials: () => Promise<{success: boolean, error?: string}>;
             plaidGetAccounts: () => Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}>;
         };
     }
 }
-
-// Basic Component 2: Counter
-const CounterComponent = () => {
-    const [count, setCount] = useState(0);
-    return (
-        <div className="p-4 border border-base-300 rounded-lg">
-            <h3 className="text-lg font-medium mb-3">Counter: {count}</h3>
-            <div className="join">
-                <button className="btn btn-primary join-item" onClick={() => setCount(count + 1)}>Increment</button>
-                <button className="btn btn-secondary join-item" onClick={() => setCount(count - 1)}>Decrement</button>
-            </div>
-        </div>
-    );
-};
-
-const Page2 = () => (
-    <div className="p-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-accent mb-4">Page 2: Interactive Counter</h1>
-        <div className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-                <CounterComponent />
-                <p className="mt-4 text-base-content">This page shows a simple counter.</p>
-            </div>
-        </div>
-    </div>
-);
 
 function App() {
     const [currentPage, setCurrentPage] = useState('auth');
@@ -95,16 +68,10 @@ function App() {
                             Accounts
                         </a>
                         <a 
-                            className={`tab ${currentPage === 'page2' ? 'tab-active' : ''}`} 
-                            onClick={() => setCurrentPage('page2')}
+                            className={`tab ${currentPage === 'plaid-setup' ? 'tab-active' : ''}`} 
+                            onClick={() => setCurrentPage('plaid-setup')}
                         >
-                            Page 2
-                        </a>
-                        <a 
-                            className={`tab ${currentPage === 'plaidtest' ? 'tab-active' : ''}`} 
-                            onClick={() => setCurrentPage('plaidtest')}
-                        >
-                            Plaid Test
+                            Plaid Setup
                         </a>
                     </div>
                 </div>
@@ -113,8 +80,7 @@ function App() {
             <main className="flex-grow overflow-auto">
                 {currentPage === 'auth' ? <AuthPage currentUser={currentUser} changePage={setCurrentPage} /> : 
                  currentPage === 'accounts' ? <AccountsPage /> : 
-                 currentPage === 'page2' ? <Page2 /> : 
-                 currentPage === 'plaidtest' ? <PlaidTest /> : 
+                 currentPage === 'plaid-setup' ? <PlaidSetup /> : 
                  <AccountsPage />}
             </main>
         </div>

@@ -3,7 +3,7 @@ import PasswordInput from './PasswordInput';
 import { User } from 'src/types/userTypes';
 
 interface LoginFormProps {
-    onLogin?: (success: boolean) => void;
+    onLogin: () => void;
     currentUser: User | null;
 }
 
@@ -54,7 +54,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, currentUser }) => {
                 setError('Invalid master password');
             }
             if (onLogin) {
-                onLogin(success);
+                onLogin();
             }
         } catch (error) {
             console.error('Login error:', error);

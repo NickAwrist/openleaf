@@ -4,6 +4,7 @@ import path from "node:path";
 import * as fs from 'fs';
 import { User } from "src/types/userTypes";
 import { PlaidAccount } from "src/types/plaidTypes";
+import Store from "electron-store";
 
 const USER_DATA_DIR = app.getPath('userData');
 const DATA_DIR = path.join(USER_DATA_DIR, 'data');
@@ -11,6 +12,7 @@ const USER_DATA_FILE = path.join(DATA_DIR, 'openleaf.db');
 
 export class DBService {
     public readonly db: Database.Database;
+    private userStore: Store<{userData: User}>;
 
     constructor() {
         if (!fs.existsSync(DATA_DIR)) {
@@ -22,71 +24,89 @@ export class DBService {
     }
 
     private createTables() {
-        // Create users table
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                nickname TEXT NOT NULL,
-                phoneNumber TEXT,
-                email TEXT,
-                masterPassword TEXT NOT NULL,
-                sessionExpiresAt TEXT,
-                createdAt TEXT NOT NULL
-            )
-        `);
 
+        // Create user store
+        this.userStore = new Store<{userData: User}>({
+            name: 'userData',
+            defaults: {
+                userData: null
+            }
+        });
+        
         // Create accounts table
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id TEXT NOT NULL,
                 balances TEXT,
                 mask TEXT,
                 name TEXT NOT NULL,
                 official_name TEXT,
                 subtype TEXT,
                 type TEXT,
-                userId TEXT NOT NULL,
-                FOREIGN KEY (userId) REFERENCES users(id)
+                institution_id TEXT,
+                institution_name TEXT,
+                userId TEXT NOT NULL
             )
         `);
     }
 
-    // User operations
-    public async addUser(user: User) {
-        const stmt = this.db.prepare('INSERT INTO users (id, nickname, masterPassword, sessionExpiresAt, createdAt) VALUES (?, ?, ?, ?, ?)');
-        stmt.run(user.id, user.nickname, user.masterPassword, user.sessionExpiresAt, user.createdAt);
+    private runMigrations() {
+        console.log('Running database migrations...');
+        
+        // Just drop the old tables and recreate fresh
+        this.db.exec(`
+            DROP TABLE IF EXISTS accounts;
+            DROP TABLE IF EXISTS accounts_new;
+        `);
+        
+        // Create fresh accounts table
+        this.db.exec(`
+            CREATE TABLE accounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                account_id TEXT,
+                balances TEXT,
+                mask TEXT,
+                name TEXT,
+                official_name TEXT,
+                subtype TEXT,
+                type TEXT,
+                institution_id TEXT,
+                institution_name TEXT,
+                userId TEXT
+            )
+        `);
+        
+        console.log('Successfully created fresh accounts table');
     }
 
-    // Get user by id
-    public async getUser(id: string) {
-        const stmt = this.db.prepare('SELECT * FROM users WHERE id = ?');
-        return stmt.get(id);
+    // Get user
+    public async getUser() {
+        return this.userStore.get('userData');
     }
 
-    public async getUserByNickname(nickname: string) {
-        const stmt = this.db.prepare('SELECT * FROM users WHERE nickname = ?');
-        return stmt.get(nickname);
-    }
-
+    // Update user
     public async updateUser(user: User) {
-        const stmt = this.db.prepare('UPDATE users SET nickname = ?, masterPassword = ?, sessionExpiresAt = ?, WHERE id = ?');
-        stmt.run(user.nickname,user.masterPassword, user.sessionExpiresAt,user.id);
-    }
-
-    public async deleteUser(id: string) {
-        const stmt = this.db.prepare('DELETE FROM users WHERE id = ?');
-        stmt.run(id);
+        this.userStore.set('userData', user);
     }
 
     // Account operations
     public async addAccount(account: PlaidAccount, userId: string) {
         console.log('Adding account to database:', account);
-        const stmt = this.db.prepare('INSERT INTO accounts (balances, mask, name, official_name, subtype, type, userId) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        stmt.run(JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, userId);
+
+        // Check if account already exists
+        const existingAccount = await this.getAccount(account.account_id);
+        if(existingAccount) {
+            console.log('Account already exists:', existingAccount);
+            return;
+        }
+
+        const stmt = this.db.prepare('INSERT INTO accounts (account_id, balances, mask, name, official_name, subtype, type, institution_id, institution_name, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        stmt.run(account.account_id, JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, account.institution_id, account.institution_name, userId);
     }
 
     public async getAccount(accountId: string) {
-        const stmt = this.db.prepare('SELECT * FROM accounts WHERE accountId = ?');
+        const stmt = this.db.prepare('SELECT * FROM accounts WHERE account_id = ?');
         return stmt.get(accountId);
     }
 
@@ -96,7 +116,7 @@ export class DBService {
         
         // Parse the JSON balances back to objects
         return rows.map(row => ({
-            account_id: row.id?.toString() || '', // Use database id as account_id
+            account_id: row.account_id,
             balances: JSON.parse(row.balances),
             mask: row.mask,
             name: row.name,
@@ -114,7 +134,7 @@ export class DBService {
     }
 
     public async updateAccount(account: PlaidAccount, userId: string) {
-        const stmt = this.db.prepare('UPDATE accounts SET balances = ?, mask = ?, name = ?, official_name = ?, subtype = ?, type = ? WHERE accountId = ? AND userId = ?');
-        stmt.run(JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, account.account_id, userId);
+        const stmt = this.db.prepare('UPDATE accounts SET balances = ?, mask = ?, name = ?, official_name = ?, subtype = ?, type = ?, institution_id = ?, institution_name = ? WHERE account_id = ? AND userId = ?');
+        stmt.run(JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, account.institution_id, account.institution_name, account.account_id, userId);
     }
 }

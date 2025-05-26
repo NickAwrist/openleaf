@@ -12,12 +12,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Auth functions
     login: (nickname: string, masterPassword: string) => ipcRenderer.invoke('auth:login', nickname, masterPassword),
-    register: (user: User) => ipcRenderer.invoke('auth:register', user),
+    register: (nickname: string, masterPassword: string) => ipcRenderer.invoke('auth:register', nickname, masterPassword),
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
 
     // Plaid functions
-    plaidSetup: () => ipcRenderer.invoke('plaid:setup'),
-    plaidInitialize: () => ipcRenderer.invoke('plaid:initialize'),
+    plaidSetup: (password: string, clientId: string, secret: string) => ipcRenderer.invoke('plaid:setup', password, clientId, secret),
     plaidCreateLinkToken: (clientUserId: string) => ipcRenderer.invoke('plaid:createLinkToken', clientUserId),
     plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => ipcRenderer.invoke('plaid:exchangePublicToken', publicToken, friendlyName),
     plaidClearCredentials: () => ipcRenderer.invoke('plaid:clearCredentials'),

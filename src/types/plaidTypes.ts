@@ -1,4 +1,4 @@
-import { EncryptedData } from "../services/encryption";
+import { EncryptedData } from "../utils/encryption";
 
 /**
  * PlaidItem is the main object that represents a bank link.

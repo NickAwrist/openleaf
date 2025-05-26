@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import PasswordInput from './PasswordInput';
 
 interface RegisterFormProps {
-    onRegister?: (success: boolean) => void;
+    onRegister: () => void;
 }
 
 interface RegisterFormData {
@@ -52,37 +51,17 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegister }) => {
         setIsRegistering(true);
         
         try {
-            // Prepare user data for registration
-            
-            const userToRegister = {
-                id: uuidv4().toString(),
-                nickname: registerData.name,
-                masterPassword: registerData.masterPassword,
-                sessionExpiresAt: '0',
-                createdAt: new Date().toISOString()
-            };
-            
-            console.log('User to register:', userToRegister);
-
-            const res: {success: boolean, error?: string} = await window.electronAPI.register(userToRegister);
+            const res: {success: boolean, error?: string} = await window.electronAPI.register(registerData.name, registerData.masterPassword);
             console.log('Registration response:', res.success, res.error);
             if (res.success) {
-                if (onRegister) {
-                    console.log('Registration successful');
-                    onRegister(true);
-                }
+                console.log('Registration successful');
+                onRegister();
             } else {
                 setError(res.error || 'Registration failed. Please try again.');
-                if (onRegister) {
-                    onRegister(false);
-                }
             }
         } catch (error) {
             console.error('Registration error:', error);
             setError('Registration failed. Please try again.');
-            if (onRegister) {
-                onRegister(false);
-            }
         } finally {
             setIsRegistering(false);
         }
