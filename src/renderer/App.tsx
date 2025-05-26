@@ -10,8 +10,10 @@ declare global {
     interface Window {
         electronAPI: {
             getCurrentUser: () => Promise<User | null>;
-            login: (nickname: string, masterPassword: string) => Promise<boolean>;
+            login: (nickname: string, masterPassword: string) => Promise<{success: boolean, error?: string}>;
             register: (nickname: string, masterPassword: string) => Promise<{success: boolean, error?: string}>;
+            validatePassword: (password: string) => Promise<boolean>;
+
             plaidSetup: (password: string, clientId: string, secret: string) => Promise<{success: boolean, error?: string}>;
             plaidCreateLinkToken: (clientUserId: string) => Promise<{success: boolean, error?: string, linkToken?: string}>;
             plaidExchangePublicToken: (password: string, publicToken: string, friendlyName?: string) => Promise<{success: boolean, error?: string, item?: any}>;

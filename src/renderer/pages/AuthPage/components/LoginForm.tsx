@@ -50,12 +50,12 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, currentUser }) => {
             }
 
             const success = await window.electronAPI.login(nicknameToUse, masterPassword);
-            if (!success) {
+            console.log('Login success:', success);
+            if (!success.success) {
                 setError('Invalid master password');
-            }
-            if (onLogin) {
-                onLogin();
-            }
+                return;
+            }   
+            onLogin();
         } catch (error) {
             console.error('Login error:', error);
             setError('Login failed. Please try again.');

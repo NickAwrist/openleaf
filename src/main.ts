@@ -106,6 +106,10 @@ ipcMain.handle('auth:getCurrentUser', async (event) => {
     return authService.getCurrentUser();
 });
 
+ipcMain.handle('auth:validatePassword', async (event, password: string) => {
+    return authService.validatePassword(password);
+});
+
 // Plaid IPC handlers
 ipcMain.handle('plaid:setup', async (event, password: string, clientId: string, secret: string) => {
     return plaidService.setupAndStorePlaidKeys(password, clientId, secret);

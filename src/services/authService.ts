@@ -31,8 +31,9 @@ export class AuthService {
             console.log('Logging user in:', nickname, masterPassword);
 
             // Check if the password is correct
-            const isPasswordCorrect = await bcrypt.compare(masterPassword, this.currentUser.masterPassword);
+            const isPasswordCorrect = await this.validatePassword(masterPassword);
             if(!isPasswordCorrect) return {success: false, error: 'Invalid password'};
+            console.log('Password is correct:', isPasswordCorrect);
 
             // Update the user's session expires at
             this.currentUser.sessionExpiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString();
@@ -74,5 +75,12 @@ export class AuthService {
             console.error('Error adding user:', error);
             return {success: false, error: 'Error adding user'};
         }
+    }
+
+    public async validatePassword(password: string): Promise<boolean> {
+        console.log('Validating password:', password);
+        const isPasswordCorrect = await bcrypt.compare(password, this.currentUser.masterPassword);
+        console.log('Is password correct:', isPasswordCorrect);
+        return isPasswordCorrect;
     }
 }

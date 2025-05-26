@@ -3,9 +3,6 @@ import { PlaidAccount, PlaidBalance } from "src/types/plaidTypes";
 
 const AccountCard: React.FC<{ account: PlaidAccount }> = ({ account }) => {
 
-    console.log('AccountCard account.balances:', account.balances);
-    console.log('AccountCard account.balances type:', typeof account.balances);
-
     const balances = typeof account.balances === 'string' 
         ? JSON.parse(account.balances) 
         : account.balances;

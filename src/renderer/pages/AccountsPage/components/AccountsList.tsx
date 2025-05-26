@@ -1,17 +1,12 @@
 import { PlaidAccount } from "src/types/plaidTypes";
 
 import AccountCard from "./AccountCard";
-import { useEffect } from "react";
 
 interface AccountsListProps {
     accounts: PlaidAccount[];
 }
 
 const AccountsList: React.FC<AccountsListProps> = ({ accounts }) => {
-
-    useEffect(() => {
-        console.log('AccountsList accounts:', accounts);
-    }, [accounts]);
 
     return (
         <div className="max-w-2xl mx-auto h-[70vh] overflow-y-auto space-y-3 pr-2">

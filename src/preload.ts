@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     login: (nickname: string, masterPassword: string) => ipcRenderer.invoke('auth:login', nickname, masterPassword),
     register: (nickname: string, masterPassword: string) => ipcRenderer.invoke('auth:register', nickname, masterPassword),
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+    validatePassword: (password: string) => ipcRenderer.invoke('auth:validatePassword', password),
 
     // Plaid functions
     plaidSetup: (password: string, clientId: string, secret: string) => ipcRenderer.invoke('plaid:setup', password, clientId, secret),
