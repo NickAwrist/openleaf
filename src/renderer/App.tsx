@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import AuthPage from './pages/AuthPage';
 import PlaidSetup from './pages/PlaidSetup';
 import { User } from 'src/types/userTypes';
-import { PlaidAccount } from 'src/types/plaidTypes';
+import { PlaidAccount, PlaidTransaction } from 'src/types/plaidTypes';
 import AccountsPage from './pages/AccountsPage';
+import AccountPage from './pages/AccountPage';
 
 declare global {
     interface Window {
@@ -19,12 +20,14 @@ declare global {
             plaidExchangePublicToken: (password: string, publicToken: string, friendlyName?: string) => Promise<{success: boolean, error?: string, item?: any}>;
             plaidClearCredentials: () => Promise<{success: boolean, error?: string}>;
             plaidGetAccounts: () => Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}>;
+            plaidGetTransactions: (accountId: string) => Promise<PlaidTransaction[]>;
         };
     }
 }
 
 function App() {
     const [currentPage, setCurrentPage] = useState('auth');
+    const [selectedAccount, setSelectedAccount] = useState<PlaidAccount | null>(null);
 
     const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -49,8 +52,18 @@ function App() {
         }
     }, [currentUser]);
 
+    const handleAccountSelect = (account: PlaidAccount) => {
+        setSelectedAccount(account);
+        setCurrentPage('account');
+    };
+
+    const handleBackToAccounts = () => {
+        setSelectedAccount(null);
+        setCurrentPage('accounts');
+    };
+
     return (
-        <div className="min-h-screen flex flex-col bg-base-200">
+        <div className="flex flex-col bg-base-200">
             <div className="navbar bg-base-100 shadow-md">
                 <div className="flex-1">
                     <a className="btn btn-ghost text-xl">OpenLeaf</a>
@@ -64,7 +77,7 @@ function App() {
                             Auth
                         </a>
                         <a 
-                            className={`tab ${currentPage === 'accounts' ? 'tab-active' : ''}`} 
+                            className={`tab ${(currentPage === 'accounts' || currentPage === 'account') ? 'tab-active' : ''}`} 
                             onClick={() => setCurrentPage('accounts')}
                         >
                             Accounts
@@ -81,9 +94,10 @@ function App() {
             
             <main className="flex-grow overflow-auto">
                 {currentPage === 'auth' ? <AuthPage currentUser={currentUser} changePage={setCurrentPage} /> : 
-                 currentPage === 'accounts' ? <AccountsPage /> : 
+                 currentPage === 'accounts' ? <AccountsPage onAccountSelect={handleAccountSelect} /> : 
+                 currentPage === 'account' && selectedAccount ? <AccountPage account={selectedAccount} onBack={handleBackToAccounts} /> :
                  currentPage === 'plaid-setup' ? <PlaidSetup /> : 
-                 <AccountsPage />}
+                 <AccountsPage onAccountSelect={handleAccountSelect} />}
             </main>
         </div>
     );

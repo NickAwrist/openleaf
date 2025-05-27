@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { PlaidAccount, PlaidBalance } from "src/types/plaidTypes";
 
-const AccountCard: React.FC<{ account: PlaidAccount }> = ({ account }) => {
+interface AccountCardProps {
+    account: PlaidAccount;
+    onClick: () => void;
+}
+
+const AccountCard: React.FC<AccountCardProps> = ({ account, onClick }) => {
 
     const balances = typeof account.balances === 'string' 
         ? JSON.parse(account.balances) 
@@ -23,7 +28,10 @@ const AccountCard: React.FC<{ account: PlaidAccount }> = ({ account }) => {
 
 
     return (
-        <div className="card bg-base-100 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.01] cursor-pointer border border-base-300">
+        <div 
+            className="card bg-base-100 shadow-sm hover:shadow-md transition-all duration-300 hover:scale-[1.01] cursor-pointer border border-base-300"
+            onClick={onClick}
+        >
             <div className="card-body p-4">
                 <div className="flex items-center justify-between">
                     <div className="flex-1">

@@ -30,3 +30,15 @@ export interface PlaidBalance {
     limit: number;
     unofficial_currency_code: string;
 }
+
+export interface PlaidTransaction {
+    transaction_id: string;
+    account_id: string;
+    amount: number;
+    iso_currency_code: string;
+    date: string;
+    merchant_name?: string;
+    name: string;
+    pending: boolean;
+    payment_channel: string;
+}

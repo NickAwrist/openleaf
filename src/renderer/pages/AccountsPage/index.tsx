@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { PlaidAccount } from 'src/types/plaidTypes';
 import AccountsList from './components/AccountsList';
 
-const AccountsPage: React.FC = () => {
+interface AccountsPageProps {
+    onAccountSelect: (account: PlaidAccount) => void;
+}
+
+const AccountsPage: React.FC<AccountsPageProps> = ({ onAccountSelect }) => {
     const [accounts, setAccounts] = useState<PlaidAccount[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -85,7 +89,7 @@ const AccountsPage: React.FC = () => {
                                 Manage and monitor all your connected accounts in one place
                             </p>
                         </div>
-                        <AccountsList accounts={accounts} />
+                        <AccountsList accounts={accounts} onAccountSelect={onAccountSelect} />
                     </div>
                 )}
             </div>

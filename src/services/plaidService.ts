@@ -7,7 +7,7 @@ import { PlaidApi,
     Transaction,
 } from "plaid";
 import { decrypt, EncryptedData, encrypt } from "../utils/encryption";
-import { PlaidItem, PlaidAccount } from "../types/plaidTypes";
+import { PlaidItem, PlaidAccount, PlaidTransaction } from "../types/plaidTypes";
 import { authService } from "../main";
 import { User } from "src/types/userTypes";
 import { dbService as db } from "../main";
@@ -30,13 +30,19 @@ export class PlaidService {
         }
         
         if(this.user.encryptedPlaidSecret){
+            console.log('Decrypting secret');
             this.decryptedSecret = decrypt(this.user.encryptedPlaidSecret, password);
+            console.log('Decrypted secret:', this.decryptedSecret);
         }
         if(this.user.encryptedPlaidClientId){
+            console.log('Decrypting client id');
             this.decryptedClientId = decrypt(this.user.encryptedPlaidClientId, password);
+            console.log('Decrypted client id:', this.decryptedClientId);
         }
         if(this.user.encryptedPlaidAccessToken){
+            console.log('Decrypting access token');
             this.decryptedAccessToken = decrypt(this.user.encryptedPlaidAccessToken, password);
+            console.log('Decrypted access token:', this.decryptedAccessToken);
         }
 
         return { success: true };
@@ -79,6 +85,8 @@ export class PlaidService {
 
     public async initializePlaidClientForSession(): Promise<{success: boolean, error?: string}> {
 
+        this.user = authService.getCurrentUser();
+        
         if(!this.user) {
             return { success: false, error: 'User not found' };
         }
@@ -99,6 +107,22 @@ export class PlaidService {
         }
         
         return { success: true };
+    }
+    
+    public async setupPlaidSession(password: string) {
+        this.user = authService.getCurrentUser();
+        if(!this.user) {
+            throw new Error('User not found');
+        }
+        
+        const decrypted = await this.decryptCredentials(password);
+        if(!decrypted.success) {
+            throw decrypted.error;
+        }
+        const plaidClientInitiated = await this.initializePlaidClientForSession();
+        if(!plaidClientInitiated.success) {
+            throw plaidClientInitiated.error;
+        }
     }
 
     public async createLinkToken(clientUserId: string): Promise<{success: boolean, error?: string, linkToken?: string}> {
@@ -149,7 +173,7 @@ export class PlaidService {
 
             this.decryptedAccessToken = accessToken;
 
-            const encryptedAccessToken = encrypt(password, accessToken);
+            const encryptedAccessToken = encrypt(accessToken, password);
             if(!encryptedAccessToken) {
                 return { success: false, error: 'Failed to encrypt access token' };
             }
@@ -158,6 +182,7 @@ export class PlaidService {
             await db.updateUser(this.user);
 
             await this.getAccounts();
+            await this.getTransactions();
 
             return { success: true };
         } catch (error) {
@@ -184,7 +209,6 @@ export class PlaidService {
                 secret: this.decryptedSecret
             });
 
-            console.log('Accounts:', response.data);
             const institution_id = response.data.item.institution_id;
             const institution_name = response.data.item.institution_name;
 
@@ -200,7 +224,6 @@ export class PlaidService {
                     institution_id: institution_id,
                     institution_name: institution_name
                 }
-                console.log('Adding account:', plaidAccount);
                 await db.addAccount(plaidAccount, this.user.id);
             }
 
@@ -208,6 +231,50 @@ export class PlaidService {
         } catch (error) {
             console.log('Error getting accounts:', error);
             return { success: false, error: 'Failed to get accounts' };
+        }
+    }
+
+    public async getTransactions(): Promise<{success: boolean, error?: string}> {
+        if(!this.plaid) {
+            return { success: false, error: 'Plaid client not initialized' };
+        }
+
+        if (!this.decryptedAccessToken) {
+            return { success: false, error: 'No access token available' };
+        }
+
+        console.log('Getting transactions');
+
+        try {
+            const response = await this.plaid.transactionsSync({
+                client_id: this.decryptedClientId,
+                secret: this.decryptedSecret,
+                access_token: this.decryptedAccessToken,
+                options: {
+                    include_personal_finance_category: true,
+                }
+            });
+
+            for (const transaction of response.data.added) {
+                const plaidTransaction: PlaidTransaction = {
+                    transaction_id: transaction.transaction_id,
+                    account_id: transaction.account_id,
+                    amount: transaction.amount,
+                    iso_currency_code: transaction.iso_currency_code,
+                    date: transaction.date,
+                    name: transaction.name,
+                    pending: transaction.pending,
+                    payment_channel: transaction.payment_channel,
+                    merchant_name: transaction.merchant_name
+                }
+                console.log('Adding transaction:', plaidTransaction.transaction_id);
+                await db.addTransaction(plaidTransaction, this.user.id);
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.log('Error getting transactions:', error);
+            return { success: false, error: 'Failed to get transactions' };
         }
     }
 

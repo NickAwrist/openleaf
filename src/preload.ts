@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     plaidExchangePublicToken: (publicToken: string, friendlyName?: string) => ipcRenderer.invoke('plaid:exchangePublicToken', publicToken, friendlyName),
     plaidClearCredentials: () => ipcRenderer.invoke('plaid:clearCredentials'),
     plaidGetAccounts: () => ipcRenderer.invoke('plaid:getAccounts'),
+    plaidGetTransactions: (accountId: string) => ipcRenderer.invoke('plaid:getTransactions', accountId),
 });
 
 // Basic preload debug

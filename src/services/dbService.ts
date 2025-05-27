@@ -3,7 +3,7 @@ import { app } from "electron";
 import path from "node:path";
 import * as fs from 'fs';
 import { User } from "src/types/userTypes";
-import { PlaidAccount } from "src/types/plaidTypes";
+import { PlaidAccount, PlaidTransaction } from "src/types/plaidTypes";
 import Store from "electron-store";
 
 const USER_DATA_DIR = app.getPath('userData');
@@ -49,35 +49,23 @@ export class DBService {
                 userId TEXT NOT NULL
             )
         `);
-    }
 
-    private runMigrations() {
-        console.log('Running database migrations...');
-        
-        // Just drop the old tables and recreate fresh
+        // Create transactions table
         this.db.exec(`
-            DROP TABLE IF EXISTS accounts;
-            DROP TABLE IF EXISTS accounts_new;
-        `);
-        
-        // Create fresh accounts table
-        this.db.exec(`
-            CREATE TABLE accounts (
+            CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                account_id TEXT,
-                balances TEXT,
-                mask TEXT,
-                name TEXT,
-                official_name TEXT,
-                subtype TEXT,
-                type TEXT,
-                institution_id TEXT,
-                institution_name TEXT,
-                userId TEXT
+                transaction_id TEXT NOT NULL,
+                account_id TEXT NOT NULL,
+                amount REAL NOT NULL,
+                iso_currency_code TEXT NOT NULL,
+                date TEXT NOT NULL,
+                merchant_name TEXT,
+                name TEXT NOT NULL,
+                pending BOOLEAN NOT NULL,
+                payment_channel TEXT NOT NULL,
+                userId TEXT NOT NULL
             )
         `);
-        
-        console.log('Successfully created fresh accounts table');
     }
 
     // Get user
@@ -136,5 +124,39 @@ export class DBService {
     public async updateAccount(account: PlaidAccount, userId: string) {
         const stmt = this.db.prepare('UPDATE accounts SET balances = ?, mask = ?, name = ?, official_name = ?, subtype = ?, type = ?, institution_id = ?, institution_name = ? WHERE account_id = ? AND userId = ?');
         stmt.run(JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, account.institution_id, account.institution_name, account.account_id, userId);
+    }
+
+    // Transaction operations
+    public async addTransaction(transaction: PlaidTransaction, userId: string) {
+        // Check if transaction already exists
+        const existingTransaction = await this.getTransaction(transaction.transaction_id);
+        if(existingTransaction) {
+            console.log('Transaction already exists:', existingTransaction);
+            return;
+        }
+
+        const stmt = this.db.prepare('INSERT INTO transactions (transaction_id, account_id, amount, iso_currency_code, date, name, pending, payment_channel, merchant_name, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        stmt.run(transaction.transaction_id, transaction.account_id, transaction.amount, transaction.iso_currency_code, transaction.date, transaction.name, transaction.pending ? 1 : 0, transaction.payment_channel, transaction.merchant_name, userId);
+    }
+
+    public async getTransaction(transactionId: string) {
+        const stmt = this.db.prepare('SELECT * FROM transactions WHERE transaction_id = ?');
+        return stmt.get(transactionId);
+    }
+
+    public async getTransactions(accountId: string): Promise<PlaidTransaction[]> {
+        const stmt = this.db.prepare('SELECT * FROM transactions WHERE account_id = ?');
+        const rows = stmt.all(accountId) as any[];
+        return rows.map(row => ({
+            transaction_id: row.transaction_id,
+            account_id: row.account_id,
+            amount: row.amount,
+            iso_currency_code: row.iso_currency_code,
+            date: row.date,
+            name: row.name,
+            pending: row.pending === 1,
+            payment_channel: row.payment_channel,
+            merchant_name: row.merchant_name
+        }));
     }
 }

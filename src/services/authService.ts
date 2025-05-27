@@ -42,8 +42,7 @@ export class AuthService {
             await db.updateUser(this.currentUser);
             
             // Decrypt the user's plaid credentials
-            await plaid.decryptCredentials(masterPassword);
-            await plaid.initializePlaidClientForSession();
+            await plaid.setupPlaidSession(masterPassword);
 
             console.log('User logged in:', this.currentUser);
 

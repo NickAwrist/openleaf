@@ -139,3 +139,7 @@ ipcMain.handle('plaid:getAccounts', async (event) => {
         return { success: false, error: 'Failed to get accounts' };
     }
 });
+
+ipcMain.handle('plaid:getTransactions', async (event, accountId: string) => {
+    return dbService.getTransactions(accountId);
+});
