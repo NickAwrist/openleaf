@@ -7,7 +7,7 @@ import { PlaidApi,
     Transaction,
 } from "plaid";
 import { decrypt, EncryptedData, encrypt } from "../utils/encryption";
-import { PlaidItem, PlaidAccount, PlaidTransaction } from "../types/plaidTypes";
+import { PlaidItem, PlaidAccount, PlaidTransaction, PlaidLink } from "../types/plaidTypes";
 import { authService } from "../main";
 import { User } from "src/types/userTypes";
 import { dbService as db } from "../main";
@@ -213,9 +213,6 @@ export class PlaidService {
                 secret: this.decryptedSecret
             });
 
-            // Write response to json file
-            fs.writeFileSync('accounts3.json', JSON.stringify(response.data, null, 2));
-
             const institution_id = response.data.item.institution_id;
             const institution_name = response.data.item.institution_name;
 
@@ -233,6 +230,14 @@ export class PlaidService {
                 }
                 await db.addAccount(plaidAccount, this.user.id);
             }
+
+            const plaidLink: PlaidLink = {
+                accessToken: this.decryptedAccessToken,
+                institutionId: institution_id,
+                itemId: response.data.item.item_id,
+                institutionName: institution_name
+            }
+            await db.addPlaidLink(plaidLink, this.user.id);
 
             return { success: true, accounts: response.data.accounts };
         } catch (error) {
@@ -398,14 +403,6 @@ export class PlaidService {
             await db.updateLastCursor(result.finalCursor);
 
             console.log(`Total transactions fetched - Added: ${result.added.length}, Modified: ${result.modified.length}, Removed: ${result.removed.length}`);
-
-            // Write final response to json file for debugging
-            fs.writeFileSync('transactions_final.json', JSON.stringify({
-                added: result.added,
-                modified: result.modified,
-                removed: result.removed,
-                final_cursor: result.finalCursor
-            }, null, 2));
 
             // Process all added transactions
             for (const transaction of result.added) {

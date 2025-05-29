@@ -3,7 +3,7 @@ import { app } from "electron";
 import path from "node:path";
 import * as fs from 'fs';
 import { User } from "src/types/userTypes";
-import { PlaidAccount, PlaidTransaction } from "src/types/plaidTypes";
+import { PlaidAccount, PlaidLink, PlaidTransaction } from "src/types/plaidTypes";
 import Store from "electron-store";
 
 const USER_DATA_DIR = app.getPath('userData');
@@ -41,6 +41,19 @@ export class DBService {
                 userData: null
             }
         });
+
+        // Create plaid links table
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS plaid_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                access_token TEXT NOT NULL,
+                institution_id TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                institution_name TEXT NOT NULL,
+                userId TEXT NOT NULL
+            )
+        `);
+        
         
         // Create accounts table
         this.db.exec(`
@@ -83,6 +96,22 @@ export class DBService {
 
     public async getLastCursor() {
         return this.applicationStore.get('lastCursor');
+    }
+
+    // Plaid link operations
+    public async addPlaidLink(plaidLink: PlaidLink, userId: string) {
+        const stmt = this.db.prepare('INSERT INTO plaid_links (access_token, institution_id, item_id, institution_name, userId) VALUES (?, ?, ?, ?, ?)');
+        stmt.run(plaidLink.accessToken, plaidLink.institutionId, plaidLink.itemId, plaidLink.institutionName, userId);
+    }
+
+    public async getPlaidLink(userId: string) {
+        const stmt = this.db.prepare('SELECT * FROM plaid_links WHERE userId = ?');
+        return stmt.get(userId) as PlaidLink;
+    }
+
+    public async deletePlaidLink(userId: string) {
+        const stmt = this.db.prepare('DELETE FROM plaid_links WHERE userId = ?');
+        stmt.run(userId);
     }
 
     // Get user

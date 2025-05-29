@@ -1,8 +1,12 @@
 import { EncryptedData } from "../utils/encryption";
 
-/**
- * PlaidItem is the main object that represents a bank link.
- */
+export interface PlaidLink {
+    accessToken: string;
+    institutionName: string;
+    institutionId: string;
+    itemId: string;
+}
+
 export interface PlaidItem {
     itemId: string;
     friendlyName: string;

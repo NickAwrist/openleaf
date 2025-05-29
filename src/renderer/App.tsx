@@ -42,14 +42,7 @@ function App() {
 
     useEffect(() => {
         if(currentUser){
-            console.log('currentUser', currentUser);
-            if(currentUser.sessionExpiresAt < new Date().toISOString()){
-                console.log('Session expired, redirecting to auth');
-                setCurrentPage('auth');
-            }else{
-                console.log('Session not expired, redirecting to page1');
-                setCurrentPage('accounts');
-            }
+            setCurrentPage('accounts');
         }
     }, [currentUser]);
 
