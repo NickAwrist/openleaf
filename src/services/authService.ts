@@ -3,8 +3,6 @@ import { User } from "src/types/userTypes";
 import { dbService as db, plaidService as plaid } from "../main";
 import { v4 as uuidv4 } from 'uuid';
 
-import { PlaidService } from "./plaidService";
-
 export class AuthService {
     private currentUser: User | null = null;
     

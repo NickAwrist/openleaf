@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     plaidClearCredentials: () => ipcRenderer.invoke('plaid:clearCredentials'),
     plaidGetAccounts: () => ipcRenderer.invoke('plaid:getAccounts'),
     plaidGetTransactions: (accountId: string) => ipcRenderer.invoke('plaid:getTransactions', accountId),
+    plaidSyncTransactions: () => ipcRenderer.invoke('plaid:syncTransactions'),
 });
 
 // Basic preload debug

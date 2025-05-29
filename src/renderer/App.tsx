@@ -21,6 +21,7 @@ declare global {
             plaidClearCredentials: () => Promise<{success: boolean, error?: string}>;
             plaidGetAccounts: () => Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}>;
             plaidGetTransactions: (accountId: string) => Promise<PlaidTransaction[]>;
+            plaidSyncTransactions: () => Promise<{success: boolean, error?: string}>;
         };
     }
 }

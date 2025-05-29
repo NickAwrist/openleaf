@@ -143,3 +143,7 @@ ipcMain.handle('plaid:getAccounts', async (event) => {
 ipcMain.handle('plaid:getTransactions', async (event, accountId: string) => {
     return dbService.getTransactions(accountId);
 });
+
+ipcMain.handle('plaid:syncTransactions', async (event) => {
+    return plaidService.syncTransactions();
+});

@@ -13,6 +13,9 @@ const USER_DATA_FILE = path.join(DATA_DIR, 'openleaf.db');
 export class DBService {
     public readonly db: Database.Database;
     private userStore: Store<{userData: User}>;
+    private applicationStore: Store<{
+        lastCursor: string;
+    }>;
 
     constructor() {
         if (!fs.existsSync(DATA_DIR)) {
@@ -21,6 +24,12 @@ export class DBService {
 
         this.db = new Database(USER_DATA_FILE);
         this.createTables();
+
+        this.applicationStore = new Store<{
+            lastCursor: string;
+        }>({
+            name: 'applicationData',
+        });
     }
 
     private createTables() {
@@ -66,6 +75,14 @@ export class DBService {
                 userId TEXT NOT NULL
             )
         `);
+    }
+
+    public async updateLastCursor(cursor: string) {
+        this.applicationStore.set('lastCursor', cursor);
+    }
+
+    public async getLastCursor() {
+        return this.applicationStore.get('lastCursor');
     }
 
     // Get user
@@ -131,7 +148,7 @@ export class DBService {
         // Check if transaction already exists
         const existingTransaction = await this.getTransaction(transaction.transaction_id);
         if(existingTransaction) {
-            console.log('Transaction already exists:', existingTransaction);
+            await this.updateTransaction(transaction);
             return;
         }
 
@@ -158,5 +175,15 @@ export class DBService {
             payment_channel: row.payment_channel,
             merchant_name: row.merchant_name
         }));
+    }
+
+    public async updateTransaction(transaction: PlaidTransaction) {
+        const stmt = this.db.prepare('UPDATE transactions SET amount = ?, iso_currency_code = ?, date = ?, name = ?, pending = ?, payment_channel = ?, merchant_name = ? WHERE transaction_id = ?');
+        stmt.run(transaction.amount, transaction.iso_currency_code, transaction.date, transaction.name, transaction.pending ? 1 : 0, transaction.payment_channel, transaction.merchant_name, transaction.transaction_id);
+    }
+
+    public async deleteTransaction(transactionId: string) {
+        const stmt = this.db.prepare('DELETE FROM transactions WHERE transaction_id = ?');
+        stmt.run(transactionId);
     }
 }
