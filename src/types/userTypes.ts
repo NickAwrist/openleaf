@@ -8,5 +8,4 @@ export interface User {
     createdAt: string;
     encryptedPlaidSecret?: EncryptedData;
     encryptedPlaidClientId?: EncryptedData;
-    encryptedPlaidAccessToken?: EncryptedData;
 }

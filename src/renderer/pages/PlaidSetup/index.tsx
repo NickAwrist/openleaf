@@ -5,7 +5,8 @@ import {
     SetupForm,
     StatusDisplay,
     Instructions,
-    AccessTokenSection
+    AccessTokenSection,
+    PlaidLinksSection
 } from './components';
 
 // Main PlaidSetup Component
@@ -189,6 +190,13 @@ const PlaidSetup: React.FC = () => {
                                 isSetupComplete={isSetupComplete}
                                 isLoading={isLoading}
                                 onOpenLink={handleOpenLink}
+                            />
+                        </div>
+                        
+                        <div className="space-y-6">
+                            <PlaidLinksSection 
+                                isPageUnlocked={isPageUnlocked}
+                                isLoading={isLoading}
                             />
                         </div>
                     </div>

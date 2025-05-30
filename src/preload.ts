@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     plaidGetAccounts: () => ipcRenderer.invoke('plaid:getAccounts'),
     plaidGetTransactions: (accountId: string) => ipcRenderer.invoke('plaid:getTransactions', accountId),
     plaidSyncTransactions: () => ipcRenderer.invoke('plaid:syncTransactions'),
+    plaidGetPlaidLinks: () => ipcRenderer.invoke('plaid:getPlaidLinks'),
 });
 
 // Basic preload debug

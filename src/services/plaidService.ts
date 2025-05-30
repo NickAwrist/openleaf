@@ -11,13 +11,13 @@ import { PlaidItem, PlaidAccount, PlaidTransaction, PlaidLink } from "../types/p
 import { authService } from "../main";
 import { User } from "src/types/userTypes";
 import { dbService as db } from "../main";
-import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 
 export class PlaidService {
     private plaid: PlaidApi | null = null;
     private decryptedSecret: string | null = null;
     private decryptedClientId: string | null = null;
-    private decryptedAccessToken: string | null = null;
+    private decryptedLinks: Record<string, PlaidLink> = {};
 
     private user: User | null = null;
 
@@ -31,24 +31,28 @@ export class PlaidService {
         }
         
         if(this.user.encryptedPlaidSecret){
-            console.log('Decrypting secret');
             this.decryptedSecret = decrypt(this.user.encryptedPlaidSecret, password);
-            console.log('Decrypted secret:', this.decryptedSecret);
         }
+
         if(this.user.encryptedPlaidClientId){
-            console.log('Decrypting client id');
             this.decryptedClientId = decrypt(this.user.encryptedPlaidClientId, password);
-            console.log('Decrypted client id:', this.decryptedClientId);
         }
-        if(this.user.encryptedPlaidAccessToken){
-            console.log('Decrypting access token');
-            this.decryptedAccessToken = decrypt(this.user.encryptedPlaidAccessToken, password);
-            console.log('Decrypted access token:', this.decryptedAccessToken);
+
+        const links = await db.getPlaidLinks(this.user.id);
+        for(const link of links){
+            const decryptedLink: PlaidLink = {
+                linkId: link.linkId,
+                accessToken: decrypt(link.accessToken as EncryptedData, password),
+                institutionId: link.institutionId,
+                institutionName: link.institutionName,
+            }
+            this.decryptedLinks[link.linkId] = decryptedLink;
         }
 
         return { success: true };
     }
 
+    // Store the user Client ID and Secret
     public async setupAndStorePlaidKeys(password: string, clientId: string, secret: string): Promise<{success: boolean, error?: string}> {
         console.log('Initializing Plaid');
 
@@ -80,10 +84,10 @@ export class PlaidService {
         console.log('Stored credentials');
 
         await this.initializePlaidClientForSession();
-        await this.getAccounts();
         return { success: true };
     }
 
+    // Initialize the Plaid client for the login session
     public async initializePlaidClientForSession(): Promise<{success: boolean, error?: string}> {
 
         this.user = authService.getCurrentUser();
@@ -97,7 +101,7 @@ export class PlaidService {
         try{
             // Initialize Plaid client
             this.plaid = new PlaidApi(new Configuration({
-                basePath: PlaidEnvironments.production,
+                basePath: PlaidEnvironments.sandbox,
                 baseOptions: {
                     headers: { 'PLAID_CLIENT_ID': this.decryptedClientId, 'PLAID_SECRET': this.decryptedSecret }
                 }
@@ -106,26 +110,32 @@ export class PlaidService {
             console.log('Error initializing Plaid client:', error);
             return { success: false, error: 'Failed to initialize Plaid client' };
         }
+
+        console.log('Plaid client initialized: ', this.plaid);
         
         return { success: true };
     }
     
+    // Setup the Plaid session
     public async setupPlaidSession(password: string) {
         this.user = authService.getCurrentUser();
         if(!this.user) {
             throw new Error('User not found');
         }
         
+        console.log('setupPlaidSession: Decrypting credentials');
         const decrypted = await this.decryptCredentials(password);
         if(!decrypted.success) {
             throw decrypted.error;
         }
+        console.log('setupPlaidSession: Initializing Plaid client');
         const plaidClientInitiated = await this.initializePlaidClientForSession();
         if(!plaidClientInitiated.success) {
             throw plaidClientInitiated.error;
         }
     }
 
+    // Create a link token for the user to link their account
     public async createLinkToken(clientUserId: string): Promise<{success: boolean, error?: string, linkToken?: string}> {
         if(!this.plaid) {
             return { success: false, error: 'Plaid client not initialized' };
@@ -142,7 +152,7 @@ export class PlaidService {
             country_codes: [CountryCode.Us],
             language: 'en',
             transactions: {
-                days_requested: 730  // Request maximum 24 months of transaction history
+                days_requested: 730
             }
         };
         
@@ -175,18 +185,21 @@ export class PlaidService {
 
             console.log('Exchanged public token:', response.data);
 
-            this.decryptedAccessToken = accessToken;
-
             const encryptedAccessToken = encrypt(accessToken, password);
             if(!encryptedAccessToken) {
                 return { success: false, error: 'Failed to encrypt access token' };
             }
 
-            this.user.encryptedPlaidAccessToken = encryptedAccessToken;
-            await db.updateUser(this.user);
+            const decryptedLink: PlaidLink = {
+                linkId: uuidv4(),
+                accessToken: accessToken,
+                institutionId: '',
+                institutionName: ''
+            }
 
-            await this.getAccounts();
-            await this.getTransactions();
+            // Get the accounts and transactions for the new link
+            await this.getAccounts(decryptedLink, password);
+            await this.getTransactions(decryptedLink.linkId);
 
             return { success: true };
         } catch (error) {
@@ -195,26 +208,32 @@ export class PlaidService {
         }
     }
 
-    private async getAccounts(): Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}> {
+    private async getAccounts(decryptedLink: PlaidLink, password: string): Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}> {
         if(!this.plaid) {
             return { success: false, error: 'Plaid client not initialized' };
         }
 
-        if (!this.decryptedAccessToken) {
-            return { success: false, error: 'No access token available' };
-        }
-
-        console.log('Getting accounts');
-
         try {
             const response = await this.plaid.accountsGet({
-                access_token: this.decryptedAccessToken,
+                access_token: decryptedLink.accessToken as string,
                 client_id: this.decryptedClientId,
                 secret: this.decryptedSecret
             });
 
             const institution_id = response.data.item.institution_id;
             const institution_name = response.data.item.institution_name;
+
+            decryptedLink.institutionId = institution_id;
+            decryptedLink.institutionName = institution_name;
+            this.decryptedLinks[decryptedLink.linkId] = decryptedLink;
+
+            const encryptedLink: PlaidLink = {
+                linkId: decryptedLink.linkId,
+                accessToken: encrypt(decryptedLink.accessToken as string, password),
+                institutionId: decryptedLink.institutionId,
+                institutionName: decryptedLink.institutionName
+            }
+            await db.addPlaidLink(encryptedLink, this.user.id);
 
             for (const account of response.data.accounts) {
                 const plaidAccount: PlaidAccount = {
@@ -231,17 +250,8 @@ export class PlaidService {
                 await db.addAccount(plaidAccount, this.user.id);
             }
 
-            const plaidLink: PlaidLink = {
-                accessToken: this.decryptedAccessToken,
-                institutionId: institution_id,
-                itemId: response.data.item.item_id,
-                institutionName: institution_name
-            }
-            await db.addPlaidLink(plaidLink, this.user.id);
-
             return { success: true, accounts: response.data.accounts };
         } catch (error) {
-            console.log('Error getting accounts:', error);
             return { success: false, error: 'Failed to get accounts' };
         }
     }
@@ -252,7 +262,7 @@ export class PlaidService {
      * @param count - Number of transactions to fetch per page (max 500)
      * @returns Object containing all transactions and final cursor
      */
-    private async paginatedTransactionSync(cursor?: string, count: number = 500): Promise<{
+    private async paginatedTransactionSync(cursor?: string, count: number = 500, accessToken: string = ''): Promise<{
         added: any[],
         modified: any[],
         removed: any[],
@@ -260,7 +270,7 @@ export class PlaidService {
         success: boolean,
         error?: string
     }> {
-        if (!this.plaid || !this.decryptedAccessToken) {
+        if (!this.plaid || !accessToken) {
             return { 
                 added: [], 
                 modified: [], 
@@ -287,7 +297,7 @@ export class PlaidService {
                 const request: any = {
                     client_id: this.decryptedClientId,
                     secret: this.decryptedSecret,
-                    access_token: this.decryptedAccessToken,
+                    access_token: accessToken,
                     count: Math.min(count, 500), 
                     options: {
                         include_personal_finance_category: true,
@@ -350,23 +360,25 @@ export class PlaidService {
         };
     }
 
-    public async getTransactions(): Promise<{success: boolean, error?: string}> {
+    // Get the transactions for a link
+    public async getTransactions(linkId: string): Promise<{success: boolean, error?: string}> {
         if(!this.plaid) {
             return { success: false, error: 'Plaid client not initialized' };
         }
 
-        if (!this.decryptedAccessToken) {
-            return { success: false, error: 'No access token available' };
+        const decryptedLink = this.decryptedLinks[linkId];
+        if(!decryptedLink) {
+            return { success: false, error: 'Link not found' };
         }
 
-        console.log('Getting transactions');
+        console.log('Getting transactions for link: ', linkId);
 
         try {
             // First, wait for transactions to be ready
             let response = await this.plaid.transactionsSync({
                 client_id: this.decryptedClientId,
                 secret: this.decryptedSecret,
-                access_token: this.decryptedAccessToken,
+                access_token: decryptedLink.accessToken as string,
                 options: {
                     include_personal_finance_category: true,
                     days_requested: 730,
@@ -381,7 +393,7 @@ export class PlaidService {
                 response = await this.plaid.transactionsSync({
                     client_id: this.decryptedClientId,
                     secret: this.decryptedSecret,
-                    access_token: this.decryptedAccessToken,
+                    access_token: decryptedLink.accessToken as string,
                     options: {
                         include_personal_finance_category: true,
                         days_requested: 730,
@@ -390,17 +402,18 @@ export class PlaidService {
                 console.log('Waiting for transactions to be ready. Status:', response.data.transactions_update_status);
             }
 
-            // Now implement proper pagination to get all transactions
-            console.log('Starting paginated transaction fetch');
+            // Wait for 5 seconds to ensure the transactions are ready
+            await new Promise(resolve => setTimeout(resolve, 5000));
 
-            const result = await this.paginatedTransactionSync(undefined, 500);
+            console.log('Starting paginated transaction fetch');
+            const result = await this.paginatedTransactionSync(undefined, 500, decryptedLink.accessToken as string);
             
             if (!result.success) {
                 return { success: false, error: result.error };
             }
 
             // Store the final cursor for future sync operations
-            await db.updateLastCursor(result.finalCursor);
+            await db.updateLastCursor(linkId, result.finalCursor);
 
             console.log(`Total transactions fetched - Added: ${result.added.length}, Modified: ${result.modified.length}, Removed: ${result.removed.length}`);
 
@@ -436,54 +449,37 @@ export class PlaidService {
             return { success: false, error: 'Plaid client not initialized' };
         }
 
-        if (!this.decryptedAccessToken) {
-            return { success: false, error: 'No access token available' };
-        }
-
-        console.log('Syncing transactions');
-
-        const lastCursor = await db.getLastCursor();
-        console.log('Last cursor:', lastCursor);
-        
         try {
-            console.log('Starting paginated transaction sync');
+            for (const linkId of Object.keys(this.decryptedLinks)) {
+                const decryptedLink = this.decryptedLinks[linkId];
 
-            const result = await this.paginatedTransactionSync(lastCursor, 500);
-            
-            if (!result.success) {
-                return { success: false, error: result.error };
-            }
-
-            // Store the final cursor for future sync operations
-            await db.updateLastCursor(result.finalCursor);
-
-            console.log(`Total sync results - Added: ${result.added.length}, Modified: ${result.modified.length}, Removed: ${result.removed.length}`);
-
-            // Process all added transactions
-            for (const transaction of result.added) {
-                const plaidTransaction: PlaidTransaction = {
-                    transaction_id: transaction.transaction_id,
-                    account_id: transaction.account_id,
-                    amount: transaction.amount,
-                    iso_currency_code: transaction.iso_currency_code,
-                    date: transaction.date,
-                    name: transaction.name,
-                    pending: transaction.pending,
-                    payment_channel: transaction.payment_channel,
-                    merchant_name: transaction.merchant_name
+                const lastCursor = await db.getLastCursor(linkId);
+                const result = await this.paginatedTransactionSync(lastCursor, 500, decryptedLink.accessToken as string);
+                
+                if (!result.success) {
+                    return { success: false, error: result.error };
                 }
-                console.log('Adding transaction:', plaidTransaction.transaction_id);
-                await db.addTransaction(plaidTransaction, this.user.id);
+
+                await db.updateLastCursor(linkId, result.finalCursor);
+
+                for (const transaction of result.added) {
+                    const plaidTransaction: PlaidTransaction = {
+                        transaction_id: transaction.transaction_id,
+                        account_id: transaction.account_id,
+                        amount: transaction.amount,
+                        iso_currency_code: transaction.iso_currency_code,
+                        date: transaction.date,
+                        name: transaction.name,
+                        pending: transaction.pending,
+                        payment_channel: transaction.payment_channel,
+                        merchant_name: transaction.merchant_name
+                    }
+                    await db.addTransaction(plaidTransaction, this.user.id);
+                }
             }
-
-            // TODO: Handle modified and removed transactions if needed
-            // For now, we're only handling added transactions
-
-            console.log('Synced transactions');
 
             return { success: true };
         } catch (error) {
-            console.log('Error syncing transactions:', error);
             return { success: false, error: 'Failed to sync transactions' };
         }
     }
@@ -491,39 +487,27 @@ export class PlaidService {
     public async clearStoredCredentials(): Promise<{success: boolean, error?: string}> {
         this.user.encryptedPlaidClientId = null;
         this.user.encryptedPlaidSecret = null;
-        this.user.encryptedPlaidAccessToken = null;
         await db.updateUser(this.user);
         return { success: true };
     }
 
-    public async removeItem(): Promise<{success: boolean, error?: string}> {
+    public async removeItem(linkId: string): Promise<{success: boolean, error?: string}> {
         if(!this.plaid) {
             return { success: false, error: 'Plaid client not initialized' };
         }
-
-        if (!this.decryptedAccessToken) {
-            return { success: false, error: 'No access token available' };
-        }
-
-        console.log('Removing Plaid Item to allow re-creation with more transaction history');
 
         try {
             await this.plaid.itemRemove({
                 client_id: this.decryptedClientId,
                 secret: this.decryptedSecret,
-                access_token: this.decryptedAccessToken
+                access_token: this.decryptedLinks[linkId].accessToken as string
             });
 
-            console.log('Successfully removed Plaid Item');
-            
-            // Clear the stored access token since the item is now invalid
-            this.user.encryptedPlaidAccessToken = null;
-            await db.updateUser(this.user);
-            this.decryptedAccessToken = null;
+            await db.deletePlaidLink(linkId);
+            delete this.decryptedLinks[linkId];
 
             return { success: true };
         } catch (error) {
-            console.log('Error removing Plaid Item:', error);
             return { success: false, error: 'Failed to remove Plaid Item' };
         }
     }

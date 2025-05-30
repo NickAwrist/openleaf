@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import AuthPage from './pages/AuthPage';
 import PlaidSetup from './pages/PlaidSetup';
 import { User } from 'src/types/userTypes';
-import { PlaidAccount, PlaidTransaction } from 'src/types/plaidTypes';
+import { PlaidAccount, PlaidLink, PlaidTransaction } from 'src/types/plaidTypes';
 import AccountsPage from './pages/AccountsPage';
 import AccountPage from './pages/AccountPage';
 
@@ -22,6 +22,7 @@ declare global {
             plaidGetAccounts: () => Promise<{success: boolean, error?: string, accounts?: PlaidAccount[]}>;
             plaidGetTransactions: (accountId: string) => Promise<PlaidTransaction[]>;
             plaidSyncTransactions: () => Promise<{success: boolean, error?: string}>;
+            plaidGetPlaidLinks: () => Promise<PlaidLink[]>;
         };
     }
 }

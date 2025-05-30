@@ -1,10 +1,10 @@
 import { EncryptedData } from "../utils/encryption";
 
 export interface PlaidLink {
-    accessToken: string;
-    institutionName: string;
+    linkId: string;
+    accessToken: EncryptedData | string;
+    institutionName: string; 
     institutionId: string;
-    itemId: string;
 }
 
 export interface PlaidItem {

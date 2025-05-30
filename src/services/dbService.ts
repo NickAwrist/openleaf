@@ -14,7 +14,7 @@ export class DBService {
     public readonly db: Database.Database;
     private userStore: Store<{userData: User}>;
     private applicationStore: Store<{
-        lastCursor: string;
+        lastCursors: Record<string, string>;
     }>;
 
     constructor() {
@@ -26,7 +26,7 @@ export class DBService {
         this.createTables();
 
         this.applicationStore = new Store<{
-            lastCursor: string;
+            lastCursors: Record<string, string>;
         }>({
             name: 'applicationData',
         });
@@ -41,19 +41,6 @@ export class DBService {
                 userData: null
             }
         });
-
-        // Create plaid links table
-        this.db.exec(`
-            CREATE TABLE IF NOT EXISTS plaid_links (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                access_token TEXT NOT NULL,
-                institution_id TEXT NOT NULL,
-                item_id TEXT NOT NULL,
-                institution_name TEXT NOT NULL,
-                userId TEXT NOT NULL
-            )
-        `);
-        
         
         // Create accounts table
         this.db.exec(`
@@ -88,30 +75,41 @@ export class DBService {
                 userId TEXT NOT NULL
             )
         `);
+
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS plaid_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                link_id TEXT NOT NULL UNIQUE,
+                access_token TEXT NOT NULL,
+                institution_id TEXT NOT NULL,
+                institution_name TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
     }
 
-    public async updateLastCursor(cursor: string) {
-        this.applicationStore.set('lastCursor', cursor);
+    public async updateLastCursor(linkId: string, cursor: string) {
+        this.applicationStore.set('lastCursors', {
+            ...this.applicationStore.get('lastCursors'),
+            [linkId]: cursor
+        });
     }
 
-    public async getLastCursor() {
-        return this.applicationStore.get('lastCursor');
+    public async getLastCursor(linkId: string) {
+        return this.applicationStore.get('lastCursors')[linkId];
     }
 
     // Plaid link operations
-    public async addPlaidLink(plaidLink: PlaidLink, userId: string) {
-        const stmt = this.db.prepare('INSERT INTO plaid_links (access_token, institution_id, item_id, institution_name, userId) VALUES (?, ?, ?, ?, ?)');
-        stmt.run(plaidLink.accessToken, plaidLink.institutionId, plaidLink.itemId, plaidLink.institutionName, userId);
-    }
-
-    public async getPlaidLink(userId: string) {
-        const stmt = this.db.prepare('SELECT * FROM plaid_links WHERE userId = ?');
-        return stmt.get(userId) as PlaidLink;
-    }
-
-    public async deletePlaidLink(userId: string) {
-        const stmt = this.db.prepare('DELETE FROM plaid_links WHERE userId = ?');
-        stmt.run(userId);
+    public async getPlaidLinks(userId: string): Promise<PlaidLink[]> {
+        const stmt = this.db.prepare('SELECT * FROM plaid_links WHERE user_id = ?');
+        const rows = stmt.all(userId) as any[];
+        return rows.map(row => ({
+            linkId: row.link_id,
+            accessToken: row.access_token,
+            institutionId: row.institution_id,
+            institutionName: row.institution_name
+        }));
     }
 
     // Get user
@@ -214,5 +212,39 @@ export class DBService {
     public async deleteTransaction(transactionId: string) {
         const stmt = this.db.prepare('DELETE FROM transactions WHERE transaction_id = ?');
         stmt.run(transactionId);
+    }
+
+    public async addPlaidLink(link: PlaidLink, userId: string) {
+        const existingLink = await this.getPlaidLink(link.linkId);
+        if(existingLink) {
+            await this.updatePlaidLink(link, userId);
+            return;
+        }
+
+        const stmt = this.db.prepare('INSERT INTO plaid_links (link_id, access_token, institution_id, institution_name, user_id) VALUES (?, ?, ?, ?, ?)');
+        stmt.run(link.linkId, link.accessToken, link.institutionId, link.institutionName, userId);
+    }
+
+    public async getPlaidLink(linkId: string) {
+        const stmt = this.db.prepare('SELECT * FROM plaid_links WHERE link_id = ?');
+        const row = stmt.get(linkId) as any;
+        if (!row) return null;
+        
+        return {
+            linkId: row.link_id,
+            accessToken: row.access_token,
+            institutionId: row.institution_id,
+            institutionName: row.institution_name
+        };
+    }
+
+    public async updatePlaidLink(link: PlaidLink, userId: string) {
+        const stmt = this.db.prepare('UPDATE plaid_links SET access_token = ?, institution_id = ?, institution_name = ? WHERE link_id = ? AND user_id = ?');
+        stmt.run(link.accessToken, link.institutionId, link.institutionName, link.linkId, userId);
+    }
+
+    public async deletePlaidLink(linkId: string) {
+        const stmt = this.db.prepare('DELETE FROM plaid_links WHERE link_id = ?');
+        stmt.run(linkId);
     }
 }
