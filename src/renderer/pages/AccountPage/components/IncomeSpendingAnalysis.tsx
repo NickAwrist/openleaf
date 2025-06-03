@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { PlaidTransaction, PlaidAccount } from "src/types/plaidTypes";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -16,15 +16,57 @@ interface MonthlyData {
     transactionCount: number;
 }
 
+type TimeFrame = '1M' | '3M' | '6M' | 'YTD' | 'ALL';
+
 const IncomeSpendingAnalysis: React.FC<IncomeSpendingAnalysisProps> = ({ 
     transactions, 
     currencyCode,
     account
 }) => {
+    const [selectedTimeFrame, setSelectedTimeFrame] = useState<TimeFrame>('6M');
+
+    const timeFrameOptions = [
+        { value: '1M' as TimeFrame, label: '1 Month' },
+        { value: '3M' as TimeFrame, label: '3 Months' },
+        { value: '6M' as TimeFrame, label: '6 Months' },
+        { value: 'YTD' as TimeFrame, label: 'YTD' },
+        { value: 'ALL' as TimeFrame, label: 'All Time' }
+    ];
+
+    const getFilteredTransactions = useMemo(() => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        
+        let cutoffDate: Date;
+        
+        switch (selectedTimeFrame) {
+            case '1M':
+                cutoffDate = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+                break;
+            case '3M':
+                cutoffDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+                break;
+            case '6M':
+                cutoffDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+                break;
+            case 'YTD':
+                cutoffDate = new Date(currentYear, 0, 1); // January 1st of current year
+                break;
+            case 'ALL':
+            default:
+                return transactions;
+        }
+        
+        return transactions.filter(transaction => {
+            const transactionDate = new Date(transaction.date);
+            return transactionDate >= cutoffDate;
+        });
+    }, [transactions, selectedTimeFrame]);
+
     const monthlyData = useMemo(() => {
         const monthlyMap = new Map<string, MonthlyData>();
         
-        transactions.forEach(transaction => {
+        getFilteredTransactions.forEach(transaction => {
             const date = new Date(transaction.date);
             const year = date.getFullYear();
             const month = date.getMonth() + 1; // 1-12
@@ -77,7 +119,7 @@ const IncomeSpendingAnalysis: React.FC<IncomeSpendingAnalysisProps> = ({
         return Array.from(monthlyMap.entries())
             .sort((a, b) => b[0].localeCompare(a[0])) 
             .map(([key, data]) => data); 
-    }, [transactions]);
+    }, [getFilteredTransactions, account.type]);
 
     const formatCurrency = (amount: number) => {
         return new Intl.NumberFormat('en-US', {
@@ -101,6 +143,32 @@ const IncomeSpendingAnalysis: React.FC<IncomeSpendingAnalysisProps> = ({
 
     return (
         <div className="space-y-6">
+            {/* Time Frame Filter */}
+            <div className="card bg-base-100 shadow-sm border border-base-200">
+                <div className="card-body">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="card-title text-base">Time Range</h3>
+                        <div className="badge badge-outline">
+                            {getFilteredTransactions.length} transactions
+                        </div>
+                    </div>
+                    
+                    <div className="join w-full">
+                        {timeFrameOptions.map((option) => (
+                            <input
+                                key={option.value}
+                                className="join-item btn btn-sm"
+                                type="radio"
+                                name="timeframe"
+                                aria-label={option.label}
+                                checked={selectedTimeFrame === option.value}
+                                onChange={() => setSelectedTimeFrame(option.value)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </div>
+
             {/* Monthly Table */}
             <div className="card bg-base-100 shadow-sm border border-base-200">
                 <div className="card-body">
@@ -140,7 +208,7 @@ const IncomeSpendingAnalysis: React.FC<IncomeSpendingAnalysisProps> = ({
                     
                     {monthlyData.length === 0 && (
                         <div className="text-center py-8 text-base-content/70">
-                            No transaction data available for analysis
+                            No transaction data available for the selected time range
                         </div>
                     )}
                 </div>
