@@ -16,6 +16,7 @@ export interface PlaidItem {
 }
 
 export interface PlaidAccount {
+    linkId: string;
     account_id: string;
     balances: PlaidBalance;
     mask: string;

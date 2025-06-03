@@ -46,6 +46,7 @@ export class DBService {
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                linkId TEXT NOT NULL,
                 account_id TEXT NOT NULL,
                 balances TEXT,
                 mask TEXT,
@@ -106,7 +107,7 @@ export class DBService {
         const rows = stmt.all(userId) as any[];
         return rows.map(row => ({
             linkId: row.link_id,
-            accessToken: row.access_token,
+            accessToken: typeof row.access_token === 'string' ? JSON.parse(row.access_token) : row.access_token,
             institutionId: row.institution_id,
             institutionName: row.institution_name
         }));
@@ -133,8 +134,8 @@ export class DBService {
             return;
         }
 
-        const stmt = this.db.prepare('INSERT INTO accounts (account_id, balances, mask, name, official_name, subtype, type, institution_id, institution_name, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-        stmt.run(account.account_id, JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, account.institution_id, account.institution_name, userId);
+        const stmt = this.db.prepare('INSERT INTO accounts (linkId, account_id, balances, mask, name, official_name, subtype, type, institution_id, institution_name, userId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        stmt.run(account.linkId, account.account_id, JSON.stringify(account.balances), account.mask, account.name, account.official_name, account.subtype, account.type, account.institution_id, account.institution_name, userId);
     }
 
     public async getAccount(accountId: string) {
@@ -148,6 +149,7 @@ export class DBService {
         
         // Parse the JSON balances back to objects
         return rows.map(row => ({
+            linkId: row.linkId,
             account_id: row.account_id,
             balances: JSON.parse(row.balances),
             mask: row.mask,
@@ -215,36 +217,70 @@ export class DBService {
     }
 
     public async addPlaidLink(link: PlaidLink, userId: string) {
+        console.log('Adding plaid link to database:', link);
+        console.log('UserId:', userId);
+        
+        // Validate all parameters
+        console.log('Parameter validation:');
+        console.log('- linkId:', link.linkId, '(type:', typeof link.linkId, ')');
+        console.log('- accessToken:', link.accessToken ? 'present' : 'MISSING', '(type:', typeof link.accessToken, ')');
+        console.log('- institutionId:', link.institutionId, '(type:', typeof link.institutionId, ')');
+        console.log('- institutionName:', link.institutionName, '(type:', typeof link.institutionName, ')');
+        console.log('- userId:', userId, '(type:', typeof userId, ')');
+        
         const existingLink = await this.getPlaidLink(link.linkId);
         if(existingLink) {
+            console.log('Existing link found, updating...');
             await this.updatePlaidLink(link, userId);
             return;
         }
 
+        console.log('No existing link found, inserting new one...');
+        
+        // Serialize the accessToken if it's an object (encrypted data)
+        const serializedAccessToken = typeof link.accessToken === 'object' 
+            ? JSON.stringify(link.accessToken) 
+            : link.accessToken;
+            
         const stmt = this.db.prepare('INSERT INTO plaid_links (link_id, access_token, institution_id, institution_name, user_id) VALUES (?, ?, ?, ?, ?)');
-        stmt.run(link.linkId, link.accessToken, link.institutionId, link.institutionName, userId);
+        
+        try {
+            console.log('About to execute statement with parameters:', [link.linkId, '***encrypted***', link.institutionId, link.institutionName, userId]);
+            const res = stmt.run(link.linkId, serializedAccessToken, link.institutionId, link.institutionName, userId);
+            console.log('Plaid link added to database successfully:', res);
+        } catch (error) {
+            console.error('Error executing INSERT statement:', error);
+            console.error('Parameters were:', [link.linkId, typeof serializedAccessToken, link.institutionId, link.institutionName, userId]);
+            throw error;
+        }
     }
 
     public async getPlaidLink(linkId: string) {
         const stmt = this.db.prepare('SELECT * FROM plaid_links WHERE link_id = ?');
         const row = stmt.get(linkId) as any;
         if (!row) return null;
-        
+
         return {
             linkId: row.link_id,
-            accessToken: row.access_token,
+            accessToken: typeof row.access_token === 'string' ? JSON.parse(row.access_token) : row.access_token,
             institutionId: row.institution_id,
             institutionName: row.institution_name
         };
     }
 
     public async updatePlaidLink(link: PlaidLink, userId: string) {
+        // Serialize the accessToken if it's an object (encrypted data)
+        const serializedAccessToken = typeof link.accessToken === 'object' 
+            ? JSON.stringify(link.accessToken) 
+            : link.accessToken;
+            
         const stmt = this.db.prepare('UPDATE plaid_links SET access_token = ?, institution_id = ?, institution_name = ? WHERE link_id = ? AND user_id = ?');
-        stmt.run(link.accessToken, link.institutionId, link.institutionName, link.linkId, userId);
+        stmt.run(serializedAccessToken, link.institutionId, link.institutionName, link.linkId, userId);
     }
 
     public async deletePlaidLink(linkId: string) {
         const stmt = this.db.prepare('DELETE FROM plaid_links WHERE link_id = ?');
         stmt.run(linkId);
     }
+    
 }

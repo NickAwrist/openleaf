@@ -198,7 +198,9 @@ export class PlaidService {
             }
 
             // Get the accounts and transactions for the new link
+            console.log('Getting accounts for link:', decryptedLink.linkId);
             await this.getAccounts(decryptedLink, password);
+            console.log('Getting transactions for link:', decryptedLink.linkId);
             await this.getTransactions(decryptedLink.linkId);
 
             return { success: true };
@@ -235,8 +237,11 @@ export class PlaidService {
             }
             await db.addPlaidLink(encryptedLink, this.user.id);
 
+            console.log('Link ID:', decryptedLink.linkId);
+
             for (const account of response.data.accounts) {
                 const plaidAccount: PlaidAccount = {
+                    linkId: decryptedLink.linkId,
                     account_id: account.account_id,
                     balances: account.balances,
                     mask: account.mask,
@@ -247,11 +252,13 @@ export class PlaidService {
                     institution_id: institution_id,
                     institution_name: institution_name
                 }
+                console.log('Adding account:', plaidAccount.account_id);
                 await db.addAccount(plaidAccount, this.user.id);
             }
 
-            return { success: true, accounts: response.data.accounts };
+            return { success: true, accounts: response.data.accounts as PlaidAccount[] };
         } catch (error) {
+            console.log('Error getting accounts:', error);
             return { success: false, error: 'Failed to get accounts' };
         }
     }
@@ -384,8 +391,6 @@ export class PlaidService {
                     days_requested: 730,
                 }
             });
-
-            console.log('Initial transactions data:', response.data);
 
             // Wait for historical update to complete
             while(response.data.transactions_update_status === 'NOT_READY' || response.data.transactions_update_status !== 'HISTORICAL_UPDATE_COMPLETE') {
